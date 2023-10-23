@@ -24,6 +24,8 @@ import android.os.UserManager;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import java.util.Comparator;
+
 /**
  * Helper class to precompute the (immutable) designations of various user handles in the system
  * that may contribute to the current Sharesheet session.
@@ -94,14 +96,19 @@ public final class AnnotatedUserHandles {
 
         UserManager userManager = shareActivity.getSystemService(UserManager.class);
 
+        final int callingUid = shareActivity.getLaunchedFromUid();
+        final UserHandle callingUserHandle = UserHandle.getUserHandleForUid(callingUid);
+
         return newBuilder()
-                .setUserIdOfCallingApp(shareActivity.getLaunchedFromUid())
+                .setUserIdOfCallingApp(callingUid)
                 .setUserHandleSharesheetLaunchedAs(userHandleSharesheetLaunchedAs)
                 .setPersonalProfileUserHandle(personalProfileUserHandle)
                 .setWorkProfileUserHandle(
-                        getWorkProfileForUser(userManager, personalProfileUserHandle))
+                        getWorkProfileForUser(userManager, personalProfileUserHandle,
+                                callingUserHandle))
                 .setCloneProfileUserHandle(
-                        getCloneProfileForUser(userManager, personalProfileUserHandle))
+                        getCloneProfileForUser(userManager, personalProfileUserHandle,
+                                callingUserHandle))
                 .build();
     }
 
@@ -152,23 +159,29 @@ public final class AnnotatedUserHandles {
 
     @Nullable
     private static UserHandle getWorkProfileForUser(
-            UserManager userManager, UserHandle profileOwnerUserHandle) {
+            UserManager userManager, UserHandle profileOwnerUserHandle,
+            UserHandle callingUserHandle) {
         return userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
                 .stream()
                 .filter(info -> info.isManagedProfile())
-                .findFirst()
                 .map(info -> info.getUserHandle())
+                // prefer to return callingUserHandle if applicable
+                .sorted(Comparator.comparing(u -> !u.equals(callingUserHandle)))
+                .findFirst()
                 .orElse(null);
     }
 
     @Nullable
     private static UserHandle getCloneProfileForUser(
-            UserManager userManager, UserHandle profileOwnerUserHandle) {
+            UserManager userManager, UserHandle profileOwnerUserHandle,
+            UserHandle callingUserHandle) {
         return userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
                 .stream()
                 .filter(info -> info.isCloneProfile())
-                .findFirst()
                 .map(info -> info.getUserHandle())
+                // prefer to return callingUserHandle if applicable
+                .sorted(Comparator.comparing(u -> !u.equals(callingUserHandle)))
+                .findFirst()
                 .orElse(null);
     }
 
