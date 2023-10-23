@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2022 The Android Open Source Project
  *
@@ -14,29 +16,30 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver.emptystate;
+package com.android.intentresolver.v2.emptystate;
 
+import static android.app.admin.DevicePolicyResources.Strings.Core.RESOLVER_NO_PERSONAL_APPS;
+import static android.app.admin.DevicePolicyResources.Strings.Core.RESOLVER_NO_WORK_APPS;
 
-import static com.android.intentresolver.shared.model.Profile.Type.PERSONAL;
-
-import static java.util.Objects.requireNonNull;
-
+import android.app.admin.DevicePolicyEventLogger;
+import android.app.admin.DevicePolicyManager;
+import android.content.Context;
+import android.content.pm.ResolveInfo;
 import android.os.UserHandle;
+import android.stats.devicepolicy.nano.DevicePolicyEnums;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-import com.android.intentresolver.ProfileAvailability;
-import com.android.intentresolver.ProfileHelper;
+import com.android.intentresolver.R;
+import com.android.intentresolver.ResolvedComponentInfo;
 import com.android.intentresolver.ResolverListAdapter;
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-import com.android.intentresolver.shared.model.Profile;
-import com.android.intentresolver.ui.ProfilePagerResources;
-=======
+import com.android.intentresolver.emptystate.EmptyState;
+import com.android.intentresolver.emptystate.EmptyStateProvider;
 
 import com.google.common.collect.ImmutableList;
 
 import java.util.List;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
 
 /**
  * Chooser/ResolverActivity empty state provider that returns empty state which is shown when
@@ -44,12 +47,6 @@ import java.util.List;
  */
 public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
 
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-    @NonNull private final String mMetricsCategory;
-    private final ProfilePagerResources mProfilePagerResources;
-    private final ProfileHelper mProfileHelper;
-    private final ProfileAvailability mProfileAvailability;
-=======
     @NonNull
     private final Context mContext;
     @NonNull
@@ -60,39 +57,23 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
     private final String mMetricsCategory;
     @NonNull
     private final UserHandle mTabOwnerUserHandleForLaunch;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
 
-    public NoAppsAvailableEmptyStateProvider(
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            ProfileHelper profileHelper,
-            ProfileAvailability profileAvailability,
-=======
-            @NonNull Context context,
+    public NoAppsAvailableEmptyStateProvider(@NonNull Context context,
             @NonNull ImmutableList<UserHandle> workProfileUserHandles,
-            @Nullable UserHandle personalProfileUserHandle,
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
-            @NonNull String metricsCategory,
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            ProfilePagerResources profilePagerResources) {
-        mProfileHelper = profileHelper;
-        mProfileAvailability = profileAvailability;
-=======
+            @Nullable UserHandle personalProfileUserHandle, @NonNull String metricsCategory,
             @NonNull UserHandle tabOwnerUserHandleForLaunch) {
         mContext = context;
         mWorkProfileUserHandles = workProfileUserHandles;
         mPersonalProfileUserHandle = personalProfileUserHandle;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         mMetricsCategory = metricsCategory;
-        mProfilePagerResources = profilePagerResources;
+        mTabOwnerUserHandleForLaunch = tabOwnerUserHandleForLaunch;
     }
 
-    @NonNull
+    @Nullable
     @Override
+    @SuppressWarnings("ReferenceEquality")
     public EmptyState getEmptyState(ResolverListAdapter resolverListAdapter) {
         UserHandle listUserHandle = resolverListAdapter.getUserHandle();
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-        if (mProfileAvailability.visibleProfileCount() == 1) {
-=======
 
         if (!mWorkProfileUserHandles.isEmpty()
                 && (mTabOwnerUserHandleForLaunch.equals(listUserHandle)
@@ -117,19 +98,7 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
             );
         } else if (mWorkProfileUserHandles.isEmpty()) {
             // Return default empty state without tracking
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
             return new DefaultEmptyState();
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-        } else {
-            Profile.Type profileType =
-                    requireNonNull(mProfileHelper.findProfileType(listUserHandle));
-            String title = mProfilePagerResources.noAppsMessage(profileType);
-            return new NoAppsAvailableEmptyState(
-                    title,
-                    mMetricsCategory,
-                    /* isPersonalProfile= */ profileType == PERSONAL
-            );
-=======
         }
 
         return null;
@@ -160,22 +129,21 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
     public static class NoAppsAvailableEmptyState implements EmptyState {
 
         @NonNull
-        private String mTitle;
+        private final String mTitle;
 
         @NonNull
-        private String mMetricsCategory;
+        private final String mMetricsCategory;
 
-        private boolean mIsPersonalProfile;
+        private final boolean mIsPersonalProfile;
 
-        public NoAppsAvailableEmptyState(@NonNull String title,
-                                         @NonNull String metricsCategory,
-                                         boolean isPersonalProfile) {
+        public NoAppsAvailableEmptyState(@NonNull String title, @NonNull String metricsCategory,
+                boolean isPersonalProfile) {
             mTitle = title;
             mMetricsCategory = metricsCategory;
             mIsPersonalProfile = isPersonalProfile;
         }
 
-        @Nullable
+        @NonNull
         @Override
         public String getTitle() {
             return mTitle;
@@ -188,7 +156,7 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
                     .setStrings(mMetricsCategory)
                     .setBoolean(/*isPersonalProfile*/ mIsPersonalProfile)
                     .write();
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         }
     }
 }
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)

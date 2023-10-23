@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -14,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver;
+package com.android.intentresolver.v2;
 
 import android.annotation.Nullable;
 import android.app.prediction.AppPredictor;
@@ -32,10 +34,15 @@ import android.os.UserHandle;
 
 import androidx.lifecycle.ViewModelProvider;
 
+import com.android.intentresolver.ChooserListAdapter;
+import com.android.intentresolver.IChooserWrapper;
+import com.android.intentresolver.ResolverListController;
+import com.android.intentresolver.TestContentPreviewViewModel;
 import com.android.intentresolver.chooser.DisplayResolveInfo;
 import com.android.intentresolver.chooser.TargetInfo;
 import com.android.intentresolver.emptystate.CrossProfileIntentsChecker;
 import com.android.intentresolver.shortcuts.ShortcutLoader;
+import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -49,7 +56,17 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
     private UsageStatsManager mUsm;
 
     @Override
-    public final ChooserListAdapter createChooserListAdapter(
+    protected final ChooserActivityLogic createActivityLogic() {
+        return new TestChooserActivityLogic(
+                "ChooserWrapper",
+                /* activity = */ this,
+                this::onWorkProfileStatusUpdated,
+                sOverrides.annotatedUserHandles,
+                sOverrides.mWorkProfileAvailability);
+    }
+
+    @Override
+    public ChooserListAdapter createChooserListAdapter(
             Context context,
             List<Intent> payloadIntents,
             Intent[] initialIntents,
@@ -92,13 +109,8 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
     }
 
     @Override
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-    public ChooserListAdapter getWorkListAdapter() {
-        return mChooserMultiProfilePagerAdapter.getWorkListAdapter();
-=======
     public ChooserListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
         return mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(userHandle);
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
     }
 
     @Override
@@ -141,7 +153,7 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
     }
 
     @Override
-    public final ChooserListController createListController(UserHandle userHandle) {
+    protected ChooserListController createListController(UserHandle userHandle) {
         if (userHandle == UserHandle.SYSTEM) {
             return sOverrides.resolverListController;
         }
@@ -174,6 +186,14 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
         }
 
         return super.queryResolver(resolver, uri);
+    }
+
+    @Override
+    protected boolean isWorkProfile() {
+        if (sOverrides.alternateProfileSetting != 0) {
+            return sOverrides.alternateProfileSetting == MetricsEvent.MANAGED_PROFILE;
+        }
+        return super.isWorkProfile();
     }
 
     @Override
@@ -218,3 +238,4 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
                 context, appPredictor, userHandle, targetIntentFilter, callback);
     }
 }
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)

@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2017 The Android Open Source Project
  *
@@ -14,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver;
+package com.android.intentresolver.v2;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -24,6 +26,7 @@ import static org.mockito.Mockito.when;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
@@ -33,12 +36,18 @@ import android.util.Pair;
 import androidx.annotation.NonNull;
 import androidx.test.espresso.idling.CountingIdlingResource;
 
+import com.android.intentresolver.AnnotatedUserHandles;
+import com.android.intentresolver.ResolverListAdapter;
+import com.android.intentresolver.ResolverListController;
+import com.android.intentresolver.WorkProfileAvailabilityManager;
 import com.android.intentresolver.chooser.DisplayResolveInfo;
 import com.android.intentresolver.chooser.SelectableTargetInfo;
 import com.android.intentresolver.chooser.TargetInfo;
 import com.android.intentresolver.emptystate.CrossProfileIntentsChecker;
 import com.android.intentresolver.icons.LabelInfo;
 import com.android.intentresolver.icons.TargetDataLoader;
+
+import kotlin.Unit;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -52,6 +61,19 @@ public class ResolverWrapperActivity extends ResolverActivity {
 
     private final CountingIdlingResource mLabelIdlingResource =
             new CountingIdlingResource("LoadLabelTask");
+
+    @Override
+    protected final ResolverActivityLogic createActivityLogic() {
+        return new TestResolverActivityLogic(
+                "ResolverWrapper",
+                this,
+                () -> {
+                    onWorkProfileStatusUpdated();
+                    return Unit.INSTANCE;
+                },
+                sOverrides
+        );
+    }
 
     public CountingIdlingResource getLabelIdlingResource() {
         return mLabelIdlingResource;
@@ -95,14 +117,9 @@ public class ResolverWrapperActivity extends ResolverActivity {
         return mMultiProfilePagerAdapter.getPersonalListAdapter();
     }
 
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-    ResolverListAdapter getWorkListAdapter() {
-        return mMultiProfilePagerAdapter.getWorkListAdapter();
-=======
     ResolverListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
         return ((ResolverListAdapter) mMultiProfilePagerAdapter
                 .getListAdapterForUserHandle(userHandle));
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
     }
 
     @Override
@@ -140,6 +157,12 @@ public class ResolverWrapperActivity extends ResolverActivity {
         super.startActivityAsUser(intent, options, user);
     }
 
+    @Override
+    protected List<UserHandle> getResolverRankerServiceUserHandleListInternal(UserHandle
+            userHandle) {
+        return super.getResolverRankerServiceUserHandleListInternal(userHandle);
+    }
+
     /**
      * We cannot directly mock the activity created since instrumentation creates it.
      * <p>
@@ -147,21 +170,31 @@ public class ResolverWrapperActivity extends ResolverActivity {
      */
     public static class OverrideData {
         @SuppressWarnings("Since15")
+        public Function<PackageManager, PackageManager> createPackageManager;
         public Function<Pair<TargetInfo, UserHandle>, Boolean> onSafelyStartInternalCallback;
         public ResolverListController resolverListController;
         public ResolverListController workResolverListController;
         public Boolean isVoiceInteraction;
+        public AnnotatedUserHandles annotatedUserHandles;
+        public Integer myUserId;
         public boolean hasCrossProfileIntents;
+        public boolean isQuietModeEnabled;
+        public WorkProfileAvailabilityManager mWorkProfileAvailability;
         public CrossProfileIntentsChecker mCrossProfileIntentsChecker;
 
         public void reset() {
             onSafelyStartInternalCallback = null;
             isVoiceInteraction = null;
+            createPackageManager = null;
             resolverListController = mock(ResolverListController.class);
             workResolverListController = mock(ResolverListController.class);
+            annotatedUserHandles = AnnotatedUserHandles.newBuilder()
+                    .setUserIdOfCallingApp(1234)  // Must be non-negative.
+                    .setUserHandleSharesheetLaunchedAs(UserHandle.SYSTEM)
+                    .setPersonalProfileUserHandle(UserHandle.SYSTEM)
+                    .build();
+            myUserId = null;
             hasCrossProfileIntents = true;
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-=======
             isQuietModeEnabled = false;
 
             mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
@@ -190,7 +223,6 @@ public class ResolverWrapperActivity extends ResolverActivity {
                 }
             };
 
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
             mCrossProfileIntentsChecker = mock(CrossProfileIntentsChecker.class);
             when(mCrossProfileIntentsChecker.hasCrossProfileIntents(any(), anyInt(), anyInt()))
                     .thenAnswer(invocation -> hasCrossProfileIntents);
@@ -208,21 +240,19 @@ public class ResolverWrapperActivity extends ResolverActivity {
         }
 
         @Override
-        @Nullable
-        public Drawable getOrLoadAppTargetIcon(
+        public void loadAppTargetIcon(
                 @NonNull DisplayResolveInfo info,
                 @NonNull UserHandle userHandle,
                 @NonNull Consumer<Drawable> callback) {
-            return mTargetDataLoader.getOrLoadAppTargetIcon(info, userHandle, callback);
+            mTargetDataLoader.loadAppTargetIcon(info, userHandle, callback);
         }
 
         @Override
-        @Nullable
-        public Drawable getOrLoadDirectShareIcon(
+        public void loadDirectShareIcon(
                 @NonNull SelectableTargetInfo info,
                 @NonNull UserHandle userHandle,
                 @NonNull Consumer<Drawable> callback) {
-            return mTargetDataLoader.getOrLoadDirectShareIcon(info, userHandle, callback);
+            mTargetDataLoader.loadDirectShareIcon(info, userHandle, callback);
         }
 
         @Override
@@ -244,3 +274,4 @@ public class ResolverWrapperActivity extends ResolverActivity {
         }
     }
 }
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)

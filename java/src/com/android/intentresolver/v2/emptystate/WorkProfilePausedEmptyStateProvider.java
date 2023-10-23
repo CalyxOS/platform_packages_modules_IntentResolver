@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2022 The Android Open Source Project
  *
@@ -14,25 +16,25 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver.emptystate;
+package com.android.intentresolver.v2.emptystate;
 
 import static android.app.admin.DevicePolicyResources.Strings.Core.RESOLVER_WORK_PAUSED_TITLE;
 
-import static java.util.Objects.requireNonNull;
-
+import android.app.admin.DevicePolicyEventLogger;
 import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.os.UserHandle;
+import android.stats.devicepolicy.nano.DevicePolicyEnums;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.intentresolver.ProfileAvailability;
-import com.android.intentresolver.ProfileHelper;
+import com.android.intentresolver.MultiProfilePagerAdapter.OnSwitchOnWorkSelectedListener;
 import com.android.intentresolver.R;
 import com.android.intentresolver.ResolverListAdapter;
-import com.android.intentresolver.profiles.OnSwitchOnWorkSelectedListener;
-import com.android.intentresolver.shared.model.Profile;
+import com.android.intentresolver.WorkProfileAvailabilityManager;
+import com.android.intentresolver.emptystate.EmptyState;
+import com.android.intentresolver.emptystate.EmptyStateProvider;
 
 import com.google.common.collect.ImmutableList;
 
@@ -42,35 +44,20 @@ import com.google.common.collect.ImmutableList;
  */
 public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
 
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-    private final ProfileHelper mProfileHelper;
-    private final ProfileAvailability mProfileAvailability;
-=======
     private final ImmutableList<UserHandle> mWorkProfileUserHandles;
     private final WorkProfileAvailabilityManager mWorkProfileAvailability;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
     private final String mMetricsCategory;
     private final OnSwitchOnWorkSelectedListener mOnSwitchOnWorkSelectedListener;
     private final Context mContext;
 
     public WorkProfilePausedEmptyStateProvider(@NonNull Context context,
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            ProfileHelper profileHelper,
-            ProfileAvailability profileAvailability,
-=======
             @NonNull ImmutableList<UserHandle> workProfileUserHandles,
             @NonNull WorkProfileAvailabilityManager workProfileAvailability,
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
             @Nullable OnSwitchOnWorkSelectedListener onSwitchOnWorkSelectedListener,
             @NonNull String metricsCategory) {
         mContext = context;
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-        mProfileHelper = profileHelper;
-        mProfileAvailability = profileAvailability;
-=======
         mWorkProfileUserHandles = workProfileUserHandles;
         mWorkProfileAvailability = workProfileAvailability;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         mMetricsCategory = metricsCategory;
         mOnSwitchOnWorkSelectedListener = onSwitchOnWorkSelectedListener;
     }
@@ -78,45 +65,58 @@ public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
     @Nullable
     @Override
     public EmptyState getEmptyState(ResolverListAdapter resolverListAdapter) {
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-        UserHandle userHandle = resolverListAdapter.getUserHandle();
-        if (!mProfileHelper.getWorkProfilePresent()) {
-            return null;
-        }
-        Profile workProfile = requireNonNull(mProfileHelper.getWorkProfile());
-
-        // Policy: only show the "Work profile paused" state when:
-        // * provided list adapter is from the work profile
-        // * the list adapter is not empty
-        // * work profile quiet mode is _enabled_ (unavailable)
-
-        if (!userHandle.equals(workProfile.getPrimary().getHandle())
-                || resolverListAdapter.getCount() == 0
-                || mProfileAvailability.isAvailable(workProfile)) {
-=======
         final UserHandle listUser = resolverListAdapter.getUserHandle();
         if (!mWorkProfileUserHandles.contains(listUser)
                 || !mWorkProfileAvailability.isQuietModeEnabled(listUser)
                 || resolverListAdapter.getCount() == 0) {
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
             return null;
         }
 
-        String title = mContext.getSystemService(DevicePolicyManager.class)
+        final String title = mContext.getSystemService(DevicePolicyManager.class)
                 .getResources().getString(RESOLVER_WORK_PAUSED_TITLE,
                     () -> mContext.getString(R.string.resolver_turn_on_work_apps));
 
-        return new WorkProfileOffEmptyState(title, /* EmptyState.ClickListener */ (tab) -> {
+        return new WorkProfileOffEmptyState(title, (tab) -> {
             tab.showSpinner();
             if (mOnSwitchOnWorkSelectedListener != null) {
                 mOnSwitchOnWorkSelectedListener.onSwitchOnWorkSelected();
             }
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            mProfileAvailability.requestQuietModeState(workProfile, false);
-=======
             mWorkProfileAvailability.requestQuietModeEnabled(listUser, false);
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         }, mMetricsCategory);
     }
 
+    public static class WorkProfileOffEmptyState implements EmptyState {
+
+        private final String mTitle;
+        private final ClickListener mOnClick;
+        private final String mMetricsCategory;
+
+        public WorkProfileOffEmptyState(String title, @NonNull ClickListener onClick,
+                @NonNull String metricsCategory) {
+            mTitle = title;
+            mOnClick = onClick;
+            mMetricsCategory = metricsCategory;
+        }
+
+        @Nullable
+        @Override
+        public String getTitle() {
+            return mTitle;
+        }
+
+        @Nullable
+        @Override
+        public ClickListener getButtonClickListener() {
+            return mOnClick;
+        }
+
+        @Override
+        public void onEmptyStateShown() {
+            DevicePolicyEventLogger
+                    .createEvent(DevicePolicyEnums.RESOLVER_EMPTY_STATE_WORK_APPS_DISABLED)
+                    .setStrings(mMetricsCategory)
+                    .write();
+        }
+    }
 }
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)

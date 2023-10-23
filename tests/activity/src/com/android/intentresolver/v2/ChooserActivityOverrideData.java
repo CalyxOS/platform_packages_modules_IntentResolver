@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2021 The Android Open Source Project
  *
@@ -14,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver;
+package com.android.intentresolver.v2;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -25,6 +27,8 @@ import android.content.res.Resources;
 import android.database.Cursor;
 import android.os.UserHandle;
 
+import com.android.intentresolver.AnnotatedUserHandles;
+import com.android.intentresolver.WorkProfileAvailabilityManager;
 import com.android.intentresolver.chooser.TargetInfo;
 import com.android.intentresolver.contentpreview.ImageLoader;
 import com.android.intentresolver.emptystate.CrossProfileIntentsChecker;
@@ -59,10 +63,13 @@ public class ChooserActivityOverrideData {
     public Cursor resolverCursor;
     public boolean resolverForceException;
     public ImageLoader imageLoader;
+    public int alternateProfileSetting;
     public Resources resources;
+    public AnnotatedUserHandles annotatedUserHandles;
     public boolean hasCrossProfileIntents;
     public boolean isQuietModeEnabled;
     public Integer myUserId;
+    public WorkProfileAvailabilityManager mWorkProfileAvailability;
     public CrossProfileIntentsChecker mCrossProfileIntentsChecker;
 
     public void reset() {
@@ -73,13 +80,16 @@ public class ChooserActivityOverrideData {
         resolverForceException = false;
         resolverListController = mock(ChooserListController.class);
         workResolverListController = mock(ChooserListController.class);
+        alternateProfileSetting = 0;
         resources = null;
+        annotatedUserHandles = AnnotatedUserHandles.newBuilder()
+                    .setUserIdOfCallingApp(1234)  // Must be non-negative.
+                    .setUserHandleSharesheetLaunchedAs(UserHandle.SYSTEM)
+                    .setPersonalProfileUserHandle(UserHandle.SYSTEM)
+                    .build();
         hasCrossProfileIntents = true;
         isQuietModeEnabled = false;
         myUserId = null;
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-=======
-        packageManager = null;
         mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
                 workProfileUserHandles, null) {
             @Override
@@ -105,8 +115,8 @@ public class ChooserActivityOverrideData {
                 return false;
             }
         };
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         shortcutLoaderFactory = ((userHandle, resultConsumer) -> null);
+
         mCrossProfileIntentsChecker = mock(CrossProfileIntentsChecker.class);
         when(mCrossProfileIntentsChecker.hasCrossProfileIntents(any(), anyInt(), anyInt()))
                 .thenAnswer(invocation -> hasCrossProfileIntents);
@@ -115,3 +125,4 @@ public class ChooserActivityOverrideData {
     private ChooserActivityOverrideData() {}
 }
 
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)

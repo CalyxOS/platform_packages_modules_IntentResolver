@@ -1,3 +1,5 @@
+<<<<<<< HEAD   (dce59d Add git-review configuration)
+=======
 /*
  * Copyright (C) 2016 The Android Open Source Project
  *
@@ -14,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.android.intentresolver;
+package com.android.intentresolver.v2;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
@@ -25,10 +27,9 @@ import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
-import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.intentresolver.MatcherUtils.first;
-import static com.android.intentresolver.ResolverWrapperActivity.sOverrides;
+import static com.android.intentresolver.v2.ResolverWrapperActivity.sOverrides;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -50,27 +51,23 @@ import android.view.View;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.espresso.Espresso;
 import androidx.test.espresso.NoMatchingViewException;
-import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.intentresolver.data.repository.FakeUserRepository;
-import com.android.intentresolver.data.repository.UserRepository;
-import com.android.intentresolver.data.repository.UserRepositoryModule;
-import com.android.intentresolver.inject.ApplicationUser;
-import com.android.intentresolver.inject.ProfileParent;
-import com.android.intentresolver.shared.model.User;
+import com.android.intentresolver.AnnotatedUserHandles;
+import com.android.intentresolver.R;
+import com.android.intentresolver.ResolvedComponentInfo;
+import com.android.intentresolver.ResolverDataProvider;
 import com.android.intentresolver.widget.ResolverDrawerLayout;
 
 import com.google.android.collect.Lists;
 import com.google.common.collect.ImmutableList;
 
-import dagger.hilt.android.testing.BindValue;
 import dagger.hilt.android.testing.HiltAndroidRule;
 import dagger.hilt.android.testing.HiltAndroidTest;
-import dagger.hilt.android.testing.UninstallModules;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -87,24 +84,21 @@ import java.util.List;
  */
 @RunWith(AndroidJUnit4.class)
 @HiltAndroidTest
-@UninstallModules(UserRepositoryModule.class)
 public class ResolverActivityTest {
 
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-    private static final UserHandle PERSONAL_USER_HANDLE =
-            getInstrumentation().getTargetContext().getUser();
-    private static final UserHandle WORK_PROFILE_USER_HANDLE = UserHandle.of(10);
-    private static final UserHandle CLONE_PROFILE_USER_HANDLE = UserHandle.of(11);
-    private static final User WORK_PROFILE_USER =
-            new User(WORK_PROFILE_USER_HANDLE.getIdentifier(), User.Role.WORK);
-=======
     private static final UserHandle PERSONAL_USER_HANDLE = androidx.test.platform.app
             .InstrumentationRegistry.getInstrumentation().getTargetContext().getUser();
     private static final ImmutableList<UserHandle> WORK_PROFILE_USER_HANDLES =
             ImmutableList.of(UserHandle.of(10));
     private static final ImmutableList<UserHandle> CLONE_PROFILE_USER_HANDLES =
             ImmutableList.of(UserHandle.of(11));
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
+
+    protected Intent getConcreteIntentForLaunch(Intent clientIntent) {
+        clientIntent.setClass(
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().getTargetContext(),
+                ResolverWrapperActivity.class);
+        return clientIntent;
+    }
 
     @Rule(order = 0)
     public HiltAndroidRule mHiltAndroidRule = new HiltAndroidRule(this);
@@ -117,29 +111,13 @@ public class ResolverActivityTest {
     public void setup() {
         // TODO: use the other form of `adoptShellPermissionIdentity()` where we explicitly list the
         // permissions we require (which we'll read from the manifest at runtime).
-        getInstrumentation()
+        androidx.test.platform.app.InstrumentationRegistry
+                .getInstrumentation()
                 .getUiAutomation()
                 .adoptShellPermissionIdentity();
 
         sOverrides.reset();
     }
-
-    @BindValue
-    @ApplicationUser
-    public final UserHandle mApplicationUser = PERSONAL_USER_HANDLE;
-
-    @BindValue
-    @ProfileParent
-    public final UserHandle mProfileParent = PERSONAL_USER_HANDLE;
-
-    /** For setup of test state, a mutable reference of mUserRepository  */
-    private final FakeUserRepository mFakeUserRepo =
-            new FakeUserRepository(List.of(
-                    new User(PERSONAL_USER_HANDLE.getIdentifier(), User.Role.PERSONAL)
-            ));
-
-    @BindValue
-    public final UserRepository mUserRepository = mFakeUserRepo;
 
     @Test
     public void twoOptionsAndUserSelectsOne() throws InterruptedException {
@@ -431,14 +409,15 @@ public class ResolverActivityTest {
 
     @Test
     public void testWorkTab_workTabUsesExpectedAdapter() {
-        markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
                 createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
                         PERSONAL_USER_HANDLE);
+        markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandles);
         setupResolverControllers(personalResolvedComponentInfos, workResolvedComponentInfos);
         Intent sendIntent = createSendImageIntent();
+        markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
 
         final ResolverWrapperActivity activity = mActivityRule.launchActivity(sendIntent);
         waitForIdle();
@@ -450,9 +429,9 @@ public class ResolverActivityTest {
 
     @Test
     public void testWorkTab_personalTabUsesExpectedAdapter() {
-        markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
                 createResolvedComponentsForTestWithOtherProfile(3, PERSONAL_USER_HANDLE);
+        markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandles);
         setupResolverControllers(personalResolvedComponentInfos, workResolvedComponentInfos);
@@ -490,8 +469,7 @@ public class ResolverActivityTest {
     public void testWorkTab_selectingWorkTabAppOpensAppInWorkProfile() throws InterruptedException {
         markOtherProfileAvailability(/* workAvailable= */ true, /* cloneAvailable= */ false);
         List<ResolvedComponentInfo> personalResolvedComponentInfos =
-                createResolvedComponentsForTestWithOtherProfile(3,
-                        /* userId */ WORK_PROFILE_USER_HANDLE.getIdentifier(),
+                createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos = createResolvedComponentsForTest(4,
                 sOverrides.workProfileUserHandles);
@@ -649,14 +627,9 @@ public class ResolverActivityTest {
                 createResolvedComponentsForTestWithOtherProfile(3, /* userId */ 10,
                         PERSONAL_USER_HANDLE);
         List<ResolvedComponentInfo> workResolvedComponentInfos =
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-                createResolvedComponentsForTest(workProfileTargets, WORK_PROFILE_USER_HANDLE);
-        mFakeUserRepo.updateState(WORK_PROFILE_USER, false);
-=======
                 createResolvedComponentsForTest(workProfileTargets,
                         sOverrides.workProfileUserHandles);
         sOverrides.isQuietModeEnabled = true;
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         setupResolverControllers(personalResolvedComponentInfos, workResolvedComponentInfos);
         Intent sendIntent = createSendImageIntent();
         sendIntent.setType("TestType");
@@ -704,7 +677,7 @@ public class ResolverActivityTest {
         setupResolverControllers(personalResolvedComponentInfos, workResolvedComponentInfos);
         Intent sendIntent = createSendImageIntent();
         sendIntent.setType("TestType");
-        mFakeUserRepo.updateState(WORK_PROFILE_USER, false);
+        sOverrides.isQuietModeEnabled = true;
         sOverrides.hasCrossProfileIntents = false;
 
         mActivityRule.launchActivity(sendIntent);
@@ -774,7 +747,7 @@ public class ResolverActivityTest {
         setupResolverControllers(personalResolvedComponentInfos, workResolvedComponentInfos);
         Intent sendIntent = createSendImageIntent();
         sendIntent.setType("TestType");
-        mFakeUserRepo.updateState(WORK_PROFILE_USER, false);
+        sOverrides.isQuietModeEnabled = true;
 
         mActivityRule.launchActivity(sendIntent);
         waitForIdle();
@@ -1115,22 +1088,18 @@ public class ResolverActivityTest {
     }
 
     private void markOtherProfileAvailability(boolean workAvailable, boolean cloneAvailable) {
+        AnnotatedUserHandles.Builder handles = AnnotatedUserHandles.newBuilder();
+        handles
+                .setUserIdOfCallingApp(1234)  // Must be non-negative.
+                .setUserHandleSharesheetLaunchedAs(PERSONAL_USER_HANDLE)
+                .setPersonalProfileUserHandle(PERSONAL_USER_HANDLE);
         if (workAvailable) {
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            mFakeUserRepo.addUser(
-                    new User(WORK_PROFILE_USER_HANDLE.getIdentifier(), User.Role.WORK), true);
-=======
             handles.setWorkProfileUserHandles(WORK_PROFILE_USER_HANDLES);
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         }
         if (cloneAvailable) {
-<<<<<<< HEAD   (dce59d Add git-review configuration)
-            mFakeUserRepo.addUser(
-                    new User(CLONE_PROFILE_USER_HANDLE.getIdentifier(), User.Role.CLONE), true);
-=======
             handles.setCloneProfileUserHandles(CLONE_PROFILE_USER_HANDLES);
->>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
         }
+        sOverrides.annotatedUserHandles = handles.build();
     }
 
     private void setupResolverControllers(
@@ -1146,14 +1115,22 @@ public class ResolverActivityTest {
                 Mockito.anyBoolean(),
                 Mockito.anyBoolean(),
                 Mockito.isA(List.class),
-                eq(PERSONAL_USER_HANDLE)))
+                eq(UserHandle.SYSTEM)))
                         .thenReturn(new ArrayList<>(personalResolvedComponentInfos));
         when(sOverrides.workResolverListController.getResolversForIntentAsUser(
                 Mockito.anyBoolean(),
                 Mockito.anyBoolean(),
                 Mockito.anyBoolean(),
                 Mockito.isA(List.class),
-                eq(WORK_PROFILE_USER_HANDLE)))
+                eq(UserHandle.SYSTEM)))
+                        .thenReturn(new ArrayList<>(personalResolvedComponentInfos));
+        when(sOverrides.workResolverListController.getResolversForIntentAsUser(
+                Mockito.anyBoolean(),
+                Mockito.anyBoolean(),
+                Mockito.anyBoolean(),
+                Mockito.isA(List.class),
+                eq(UserHandle.of(10))))
                         .thenReturn(new ArrayList<>(workResolvedComponentInfos));
     }
 }
+>>>>>>> CHANGE (b99219 Support sharing to non-first work profiles)
