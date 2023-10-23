@@ -150,7 +150,6 @@ import com.android.intentresolver.v2.platform.ImageEditor;
 import com.android.intentresolver.v2.platform.NearbyShare;
 import com.android.intentresolver.v2.profiles.ChooserMultiProfilePagerAdapter;
 import com.android.intentresolver.v2.profiles.MultiProfilePagerAdapter;
-import com.android.intentresolver.v2.profiles.MultiProfilePagerAdapter.ProfileType;
 import com.android.intentresolver.v2.profiles.OnProfileSelectedListener;
 import com.android.intentresolver.v2.profiles.OnSwitchOnWorkSelectedListener;
 import com.android.intentresolver.v2.profiles.TabConfig;
@@ -188,6 +187,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -237,7 +237,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     protected static final int PROFILE_WORK = MultiProfilePagerAdapter.PROFILE_WORK;
     private boolean mRegistered;
     private PackageMonitor mPersonalPackageMonitor;
-    private PackageMonitor mWorkPackageMonitor;
+    private final List<PackageMonitor> mWorkPackageMonitors = new ArrayList<>();
     protected View mProfileView;
 
     protected ActivityLogic mLogic;
@@ -418,9 +418,10 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
         if (mRegistered) {
             mPersonalPackageMonitor.unregister();
-            if (mWorkPackageMonitor != null) {
-                mWorkPackageMonitor.unregister();
+            for (PackageMonitor workPackageMonitor : mWorkPackageMonitors) {
+                workPackageMonitor.unregister();
             }
+            mWorkPackageMonitors.clear();
             mRegistered = false;
         }
         final Intent intent = getIntent();
@@ -458,6 +459,16 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         }
     }
 
+    private void createAndRegisterWorkPackageMonitors() {
+        mWorkPackageMonitors.clear();
+        for (UserHandle workProfileUser : requireAnnotatedUserHandles().workProfileUserHandles) {
+            PackageMonitor workPackageMonitor = createPackageMonitor(
+                    mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(workProfileUser));
+            workPackageMonitor.register(this, getMainLooper(), workProfileUser, false);
+            mWorkPackageMonitors.add(workPackageMonitor);
+        }
+    }
+
     @Override
     protected final void onRestart() {
         super.onRestart();
@@ -468,23 +479,18 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                     requireAnnotatedUserHandles().personalProfileUserHandle,
                     false);
             if (hasWorkProfile()) {
-                if (mWorkPackageMonitor == null) {
-                    mWorkPackageMonitor = createPackageMonitor(
-                            mChooserMultiProfilePagerAdapter.getWorkListAdapter());
-                }
-                mWorkPackageMonitor.register(
-                        this,
-                        getMainLooper(),
-                        requireAnnotatedUserHandles().workProfileUserHandle,
-                        false);
+                createAndRegisterWorkPackageMonitors();
             }
             mRegistered = true;
         }
         WorkProfileAvailabilityManager workProfileAvailabilityManager =
                 mLogic.getWorkProfileAvailabilityManager();
-        if (hasWorkProfile() && workProfileAvailabilityManager.isWaitingToEnableWorkProfile()) {
-            if (workProfileAvailabilityManager.isQuietModeEnabled()) {
-                workProfileAvailabilityManager.markWorkProfileEnabledBroadcastReceived();
+        if (hasWorkProfile()) {
+            for (UserHandle profile : requireAnnotatedUserHandles().workProfileUserHandles) {
+                if (workProfileAvailabilityManager.isWaitingToEnableWorkProfile(profile)
+                        && workProfileAvailabilityManager.isQuietModeEnabled(profile)) {
+                    workProfileAvailabilityManager.markWorkProfileEnabledBroadcastReceived(profile);
+                }
             }
         }
         mChooserMultiProfilePagerAdapter.getActiveListAdapter().handlePackagesChanged();
@@ -543,14 +549,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                     false
             );
             if (hasWorkProfile()) {
-                mWorkPackageMonitor = createPackageMonitor(
-                        mChooserMultiProfilePagerAdapter.getWorkListAdapter());
-                mWorkPackageMonitor.register(
-                        this,
-                        getMainLooper(),
-                        requireAnnotatedUserHandles().workProfileUserHandle,
-                        false
-                );
+                createAndRegisterWorkPackageMonitors();
             }
             mRegistered = true;
             final ResolverDrawerLayout rdl = findViewById(
@@ -748,14 +747,10 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         }
 
         ResolverListAdapter activeListAdapter =
-                (mChooserMultiProfilePagerAdapter.getActiveProfile() == PROFILE_PERSONAL)
-                        ? mChooserMultiProfilePagerAdapter.getPersonalListAdapter()
-                        : mChooserMultiProfilePagerAdapter.getWorkListAdapter();
+                mChooserMultiProfilePagerAdapter.getActiveListAdapter();
 
         ResolverListAdapter inactiveListAdapter =
-                (mChooserMultiProfilePagerAdapter.getActiveProfile() == PROFILE_PERSONAL)
-                        ? mChooserMultiProfilePagerAdapter.getWorkListAdapter()
-                        : mChooserMultiProfilePagerAdapter.getPersonalListAdapter();
+                mChooserMultiProfilePagerAdapter.getInactiveListAdapter();
 
         if (!activeListAdapter.isTabLoaded() || !inactiveListAdapter.isTabLoaded()) {
             return false;
@@ -928,9 +923,10 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
             if (mPersonalPackageMonitor != null) {
                 mPersonalPackageMonitor.unregister();
             }
-            if (mWorkPackageMonitor != null) {
-                mWorkPackageMonitor.unregister();
+            for (PackageMonitor workPackageMonitor : mWorkPackageMonitors) {
+                workPackageMonitor.unregister();
             }
+            mWorkPackageMonitors.clear();
             mRegistered = false;
         }
         // If needed, show that intent is forwarded
@@ -968,7 +964,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     }
 
     private boolean hasWorkProfile() {
-        return requireAnnotatedUserHandles().workProfileUserHandle != null;
+        return !requireAnnotatedUserHandles().workProfileUserHandles.isEmpty();
     }
     private LatencyTracker getLatencyTracker() {
         return LatencyTracker.getInstance(this);
@@ -989,11 +985,11 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     }
 
     protected final EmptyStateProvider createEmptyStateProvider(
-            @Nullable UserHandle workProfileUserHandle) {
+            @NonNull ImmutableList<UserHandle> workProfileUserHandles) {
         final EmptyStateProvider blockerEmptyStateProvider = createBlockerEmptyStateProvider();
 
         final EmptyStateProvider workProfileOffEmptyStateProvider =
-                new WorkProfilePausedEmptyStateProvider(this, workProfileUserHandle,
+                new WorkProfilePausedEmptyStateProvider(this, workProfileUserHandles,
                         mLogic.getWorkProfileAvailabilityManager(),
                         /* onSwitchOnWorkSelectedListener= */
                         () -> {
@@ -1005,7 +1001,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
         final EmptyStateProvider noAppsEmptyStateProvider = new NoAppsAvailableEmptyStateProvider(
                 this,
-                workProfileUserHandle,
+                workProfileUserHandles,
                 requireAnnotatedUserHandles().personalProfileUserHandle,
                 getMetricsCategory(),
                 requireAnnotatedUserHandles().tabOwnerUserHandleForLaunch
@@ -1058,12 +1054,12 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
     protected final boolean isLaunchedAsCloneProfile() {
         UserHandle launchUser = requireAnnotatedUserHandles().userHandleSharesheetLaunchedAs;
-        UserHandle cloneUser = requireAnnotatedUserHandles().cloneProfileUserHandle;
-        return hasCloneProfile() && launchUser.equals(cloneUser);
+        return hasCloneProfile()
+                && requireAnnotatedUserHandles().cloneProfileUserHandles.contains(launchUser);
     }
 
     private boolean hasCloneProfile() {
-        return requireAnnotatedUserHandles().cloneProfileUserHandle != null;
+        return !requireAnnotatedUserHandles().cloneProfileUserHandles.isEmpty();
     }
 
     /**
@@ -1086,7 +1082,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         // b. CloneProfile exists on the device.
         if (userHandle.equals(requireAnnotatedUserHandles().personalProfileUserHandle)
                 && hasCloneProfile()) {
-            userList.add(requireAnnotatedUserHandles().cloneProfileUserHandle);
+            userList.addAll(requireAnnotatedUserHandles().cloneProfileUserHandles);
         }
         return userList;
     }
@@ -1116,9 +1112,11 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
     @Override // ResolverListCommunicator
     public final void onHandlePackagesChanged(ResolverListAdapter listAdapter) {
+        final UserHandle listUser = listAdapter.getUserHandle();
         if (!mChooserMultiProfilePagerAdapter.onHandlePackagesChanged(
                 (ChooserListAdapter) listAdapter,
-                mLogic.getWorkProfileAvailabilityManager().isWaitingToEnableWorkProfile())) {
+                mLogic.getWorkProfileAvailabilityManager()
+                        .isWaitingToEnableWorkProfile(listUser))) {
             // We no longer have any items... just finish the activity.
             finish();
         }
@@ -1248,7 +1246,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 () -> onProfileTabSelected(viewPager.getCurrentItem()),
                 new OnProfileSelectedListener() {
                     @Override
-                    public void onProfilePageSelected(@ProfileType int profileId, int pageNumber) {}
+                    public void onProfilePageSelected(int profileId, int pageNumber) {}
 
                     @Override
                     public void onProfilePageStateChanged(int state) {
@@ -1290,8 +1288,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
             Tracer.INSTANCE.endLaunchToShortcutTrace();
         }
 
-        UserHandle workUserHandle = requireAnnotatedUserHandles().workProfileUserHandle;
-        if (workUserHandle != null) {
+        for (UserHandle workUserHandle : requireAnnotatedUserHandles().workProfileUserHandles) {
             createProfileRecord(workUserHandle, targetIntentFilter, factory);
         }
     }
@@ -1342,7 +1339,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
             List<ResolveInfo> rList,
             boolean filterLastUsed) {
         if (hasWorkProfile()) {
-            mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForTwoProfiles(
+            mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForProfiles(
                     initialIntents, rList, filterLastUsed);
         } else {
             mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForOneProfile(
@@ -1409,16 +1406,16 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                                 mDevicePolicyResources.getPersonalTabAccessibilityLabel(),
                                 TAB_TAG_PERSONAL,
                                 adapter)),
-                createEmptyStateProvider(/* workProfileUserHandle= */ null),
-                /* workProfileQuietModeChecker= */ () -> false,
+                createEmptyStateProvider(/* workProfileUserHandles= */ ImmutableList.of()),
+                /* workProfileQuietModeChecker= */ (userHandle) -> false,
                 /* defaultProfile= */ PROFILE_PERSONAL,
-                /* workProfileUserHandle= */ null,
-                requireAnnotatedUserHandles().cloneProfileUserHandle,
+                /* workProfileUserHandles= */ ImmutableList.of(),
+                requireAnnotatedUserHandles().cloneProfileUserHandles,
                 mMaxTargetsPerRow,
                 mFeatureFlags);
     }
 
-    private ChooserMultiProfilePagerAdapter createChooserMultiProfilePagerAdapterForTwoProfiles(
+    private ChooserMultiProfilePagerAdapter createChooserMultiProfilePagerAdapterForProfiles(
             Intent[] initialIntents,
             List<ResolveInfo> rList,
             boolean filterLastUsed) {
@@ -1431,34 +1428,35 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 filterLastUsed,
                 /* userHandle */ requireAnnotatedUserHandles().personalProfileUserHandle
         );
-        ChooserGridAdapter workAdapter = createChooserGridAdapter(
-                /* context */ this,
-                mViewModel.getChooserRequest().getPayloadIntents(),
-                selectedProfile == PROFILE_WORK ? initialIntents : null,
-                rList,
-                filterLastUsed,
-                /* userHandle */ requireAnnotatedUserHandles().workProfileUserHandle
-        );
+        List<ChooserGridAdapter> workAdapters = requireAnnotatedUserHandles().workProfileUserHandles
+                .stream().map(workProfileUserHandle -> createChooserGridAdapter(
+                        /* context */ this,
+                        mViewModel.getChooserRequest().getPayloadIntents(),
+                        selectedProfile != PROFILE_PERSONAL ? initialIntents : null,
+                        rList,
+                        filterLastUsed,
+                        /* userHandle */ workProfileUserHandle)
+                ).collect(Collectors.toList());
         return new ChooserMultiProfilePagerAdapter(
                 /* context */ this,
-                ImmutableList.of(
+                new ImmutableList.Builder().add(
                         new TabConfig<>(
                                 PROFILE_PERSONAL,
                                 mDevicePolicyResources.getPersonalTabLabel(),
                                 mDevicePolicyResources.getPersonalTabAccessibilityLabel(),
                                 TAB_TAG_PERSONAL,
-                                personalAdapter),
-                        new TabConfig<>(
+                                personalAdapter)
+                        ).addAll(workAdapters.stream().map(workAdapter -> new TabConfig<>(
                                 PROFILE_WORK,
                                 mDevicePolicyResources.getWorkTabLabel(),
                                 mDevicePolicyResources.getWorkTabAccessibilityLabel(),
                                 TAB_TAG_WORK,
-                                workAdapter)),
-                createEmptyStateProvider(requireAnnotatedUserHandles().workProfileUserHandle),
-                () -> mLogic.getWorkProfileAvailabilityManager().isQuietModeEnabled(),
+                                workAdapter)).collect(Collectors.toList())).build(),
+                createEmptyStateProvider(requireAnnotatedUserHandles().workProfileUserHandles),
+                (userHandle) -> mLogic.getWorkProfileAvailabilityManager().isQuietModeEnabled(userHandle),
                 selectedProfile,
-                requireAnnotatedUserHandles().workProfileUserHandle,
-                requireAnnotatedUserHandles().cloneProfileUserHandle,
+                requireAnnotatedUserHandles().workProfileUserHandles,
+                requireAnnotatedUserHandles().cloneProfileUserHandles,
                 mMaxTargetsPerRow,
                 mFeatureFlags);
     }
@@ -1959,7 +1957,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         ProfileRecord record = getProfileRecord(userHandle);
         // We cannot use APS service when clone profile is present as APS service cannot sort
         // cross profile targets as of now.
-        return ((record == null) || (requireAnnotatedUserHandles().cloneProfileUserHandle != null))
+        return (record == null || !requireAnnotatedUserHandles().cloneProfileUserHandles.isEmpty())
                 ? null : record.appPredictor;
     }
 
@@ -2041,7 +2039,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
             int maxTargetsPerRow) {
         UserHandle initialIntentsUserSpace = isLaunchedAsCloneProfile()
                 && userHandle.equals(requireAnnotatedUserHandles().personalProfileUserHandle)
-                ? requireAnnotatedUserHandles().cloneProfileUserHandle : userHandle;
+                ? requireAnnotatedUserHandles().userHandleSharesheetLaunchedAs : userHandle;
         return new ChooserListAdapter(
                 context,
                 payloadIntents,
@@ -2067,14 +2065,14 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 mFeatureFlags);
     }
 
-    protected Unit onWorkProfileStatusUpdated() {
-        UserHandle workUser = requireAnnotatedUserHandles().workProfileUserHandle;
-        ProfileRecord record = workUser == null ? null : getProfileRecord(workUser);
+    protected Unit onWorkProfileStatusUpdated(UserHandle workProfileUserHandle) {
+        ProfileRecord record = getProfileRecord(workProfileUserHandle);
         if (record != null && record.shortcutLoader != null) {
             record.shortcutLoader.reset();
         }
-        if (mChooserMultiProfilePagerAdapter.getCurrentUserHandle().equals(
-                requireAnnotatedUserHandles().workProfileUserHandle)) {
+        final UserHandle currentUserHandle =
+                mChooserMultiProfilePagerAdapter.getCurrentUserHandle();
+        if (workProfileUserHandle.equals(currentUserHandle)) {
             mChooserMultiProfilePagerAdapter.rebuildActiveTab(true);
         } else {
             mChooserMultiProfilePagerAdapter.clearInactiveProfileCache();
@@ -2307,12 +2305,14 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     }
 
     /**
-     * Returns {@link #PROFILE_WORK}, if the given user handle matches work user handle.
+     * Returns {@link #PROFILE_WORK} or greater, if the given user handle matches work user handle.
      * Returns {@link #PROFILE_PERSONAL}, otherwise.
      **/
     private int getProfileForUser(UserHandle currentUserHandle) {
-        if (currentUserHandle.equals(requireAnnotatedUserHandles().workProfileUserHandle)) {
-            return PROFILE_WORK;
+        final int workProfileIndex = requireAnnotatedUserHandles().workProfileUserHandles
+                .indexOf(currentUserHandle);
+        if (workProfileIndex != -1) {
+            return PROFILE_WORK + workProfileIndex;
         }
         // We return personal profile, as it is the default when there is no work profile, personal
         // profile represents rootUser, clonedUser & secondaryUser, covering all use cases.

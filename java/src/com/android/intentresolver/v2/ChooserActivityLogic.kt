@@ -1,5 +1,6 @@
 package com.android.intentresolver.v2
 
+import android.os.UserHandle
 import androidx.activity.ComponentActivity
 import androidx.annotation.OpenForTesting
 
@@ -13,7 +14,7 @@ import androidx.annotation.OpenForTesting
 open class ChooserActivityLogic(
     tag: String,
     activity: ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
 ) :
     ActivityLogic,
     CommonActivityLogic by CommonActivityLogicImpl(

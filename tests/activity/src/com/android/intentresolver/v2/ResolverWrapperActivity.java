@@ -115,8 +115,9 @@ public class ResolverWrapperActivity extends ResolverActivity {
         return mMultiProfilePagerAdapter.getPersonalListAdapter();
     }
 
-    ResolverListAdapter getWorkListAdapter() {
-        return mMultiProfilePagerAdapter.getWorkListAdapter();
+    ResolverListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
+        return ((ResolverListAdapter) mMultiProfilePagerAdapter
+                .getListAdapterForUserHandle(userHandle));
     }
 
     @Override
@@ -194,27 +195,28 @@ public class ResolverWrapperActivity extends ResolverActivity {
             hasCrossProfileIntents = true;
             isQuietModeEnabled = false;
 
-            mWorkProfileAvailability = new WorkProfileAvailabilityManager(null, null, null) {
+            mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
+                    workProfileUserHandles, null) {
                 @Override
-                public boolean isQuietModeEnabled() {
+                public boolean isQuietModeEnabled(UserHandle userHandle) {
                     return isQuietModeEnabled;
                 }
 
                 @Override
-                public boolean isWorkProfileUserUnlocked() {
+                public boolean isWorkProfileUserUnlocked(UserHandle userHandle) {
                     return true;
                 }
 
                 @Override
-                public void requestQuietModeEnabled(boolean enabled) {
+                public void requestQuietModeEnabled(UserHandle userHandle, boolean enabled) {
                     isQuietModeEnabled = enabled;
                 }
 
                 @Override
-                public void markWorkProfileEnabledBroadcastReceived() {}
+                public void markWorkProfileEnabledBroadcastReceived(UserHandle userHandle) {}
 
                 @Override
-                public boolean isWaitingToEnableWorkProfile() {
+                public boolean isWaitingToEnableWorkProfile(UserHandle userHandle) {
                     return false;
                 }
             };

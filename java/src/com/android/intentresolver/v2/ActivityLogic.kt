@@ -22,6 +22,7 @@ import androidx.activity.ComponentActivity
 import androidx.core.content.getSystemService
 import com.android.intentresolver.AnnotatedUserHandles
 import com.android.intentresolver.WorkProfileAvailabilityManager
+import com.google.common.collect.ImmutableList
 
 /**
  * Logic for IntentResolver Activities. Anything that is not the same across activities (including
@@ -57,7 +58,7 @@ interface CommonActivityLogic {
 class CommonActivityLogicImpl(
     override val tag: String,
     override val activity: ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
 ) : CommonActivityLogic {
 
     private val userManager: UserManager = activity.getSystemService()!!
@@ -73,7 +74,7 @@ class CommonActivityLogicImpl(
     override val workProfileAvailabilityManager =
         WorkProfileAvailabilityManager(
             userManager,
-            annotatedUserHandles?.workProfileUserHandle,
+            annotatedUserHandles?.workProfileUserHandles ?: ImmutableList.of(),
             onWorkProfileStatusUpdated,
         )
 }

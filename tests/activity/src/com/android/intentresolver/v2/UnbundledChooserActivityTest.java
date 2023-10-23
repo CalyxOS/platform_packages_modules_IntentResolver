@@ -145,6 +145,8 @@ import dagger.hilt.android.testing.HiltAndroidRule;
 import dagger.hilt.android.testing.HiltAndroidTest;
 import dagger.hilt.android.testing.UninstallModules;
 
+import com.google.common.collect.ImmutableList;
+
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -193,8 +195,10 @@ public class UnbundledChooserActivityTest {
 
     private static final UserHandle PERSONAL_USER_HANDLE = InstrumentationRegistry
             .getInstrumentation().getTargetContext().getUser();
-    private static final UserHandle WORK_PROFILE_USER_HANDLE = UserHandle.of(10);
-    private static final UserHandle CLONE_PROFILE_USER_HANDLE = UserHandle.of(11);
+    private static final List<UserHandle> WORK_PROFILE_USER_HANDLES =
+            ImmutableList.of(UserHandle.of(10));
+    private static final List<UserHandle> CLONE_PROFILE_USER_HANDLES =
+            ImmutableList.of(UserHandle.of(11));
 
     @Parameters(name = "appPrediction={0}")
     public static Iterable<?> parameters() {
@@ -1845,10 +1849,12 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         waitForIdle();
 
-        for (int i = 0; i < activity.getWorkListAdapter().getCount(); i++) {
+        final ChooserListAdapter listAdapter =
+                activity.getListAdapterForUserHandle(WORK_USER_HANDLE);
+        for (int i = 0; i < listAdapter.getCount(); i++) {
             assertThat(
                     "Chooser target should not show up in opposite profile",
-                    activity.getWorkListAdapter().getItem(i).getDisplayLabel(),
+                    listAdapter.getItem(i).getDisplayLabel(),
                     not(callerTargetLabel));
         }
     }
@@ -2087,7 +2093,8 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         assertThat(activity.getCurrentUserHandle().getIdentifier(), is(10));
         assertThat(activity.getPersonalListAdapter().getCount(), is(personalProfileTargets));
-        assertThat(activity.getWorkListAdapter().getCount(), is(workProfileTargets));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCount(),
+                is(workProfileTargets));
     }
 
     @Test
@@ -2108,7 +2115,8 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         waitForIdle();
 
-        assertThat(activity.getWorkListAdapter().getCount(), is(workProfileTargets));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCount(),
+                is(workProfileTargets));
     }
 
     @Test @Ignore
@@ -2589,7 +2597,8 @@ public class UnbundledChooserActivityTest {
         waitForIdle();
 
         assertThat(activity.getPersonalListAdapter().getCallerTargetCount(), is(2));
-        assertThat(activity.getWorkListAdapter().getCallerTargetCount(), is(0));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCallerTargetCount(),
+                is(0));
     }
 
     @Test
@@ -2710,7 +2719,7 @@ public class UnbundledChooserActivityTest {
                 createResolvedComponentsWithCloneProfileForTest(
                         3,
                         PERSONAL_USER_HANDLE,
-                        CLONE_PROFILE_USER_HANDLE);
+                        CLONE_PROFILE_USER_HANDLES.get(0));
         setupResolverControllers(resolvedComponentInfos);
         Intent sendIntent = createSendTextIntent();
 
@@ -3023,10 +3032,10 @@ public class UnbundledChooserActivityTest {
                 .setUserHandleSharesheetLaunchedAs(PERSONAL_USER_HANDLE)
                 .setPersonalProfileUserHandle(PERSONAL_USER_HANDLE);
         if (workAvailable) {
-            handles.setWorkProfileUserHandle(WORK_PROFILE_USER_HANDLE);
+            handles.setWorkProfileUserHandles(WORK_PROFILE_USER_HANDLES);
         }
         if (cloneAvailable) {
-            handles.setCloneProfileUserHandle(CLONE_PROFILE_USER_HANDLE);
+            handles.setCloneProfileUserHandles(CLONE_PROFILE_USER_HANDLES);
         }
         ChooserWrapperActivity.sOverrides.annotatedUserHandles = handles.build();
     }

@@ -30,7 +30,7 @@ public interface OnProfileSelectedListener {
      *                  work profile tab
      *                  was selected.
      */
-    void onProfilePageSelected(@MultiProfilePagerAdapter.ProfileType int profileId, int pageNumber);
+    void onProfilePageSelected(int profileId, int pageNumber);
 
 
     /**

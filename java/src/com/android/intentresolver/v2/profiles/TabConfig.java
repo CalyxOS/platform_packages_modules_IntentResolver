@@ -17,14 +17,14 @@
 package com.android.intentresolver.v2.profiles;
 
 public class TabConfig<PageAdapterT> {
-    final @MultiProfilePagerAdapter.ProfileType int mProfile;
+    final int mProfile;
     final String mTabLabel;
     final String mTabAccessibilityLabel;
     final String mTabTag;
     final PageAdapterT mPageAdapter;
 
     public TabConfig(
-            @MultiProfilePagerAdapter.ProfileType int profile,
+            int profile,
             String tabLabel,
             String tabAccessibilityLabel,
             String tabTag,

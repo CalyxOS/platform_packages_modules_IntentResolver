@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 // TODO: `ChooserActivity` also has a per-profile record type. Maybe the "multi-profile pager"
 // should be the owner of all per-profile data (especially now that the API is generic)?
 class ProfileDescriptor<PageViewT, SinglePageAdapterT> {
-    final @MultiProfilePagerAdapter.ProfileType int mProfile;
+    final int mProfile;
     final String mTabLabel;
     final String mTabAccessibilityLabel;
     final String mTabTag;
@@ -51,7 +51,7 @@ class ProfileDescriptor<PageViewT, SinglePageAdapterT> {
     private final PageViewT mView;
 
     ProfileDescriptor(
-            @MultiProfilePagerAdapter.ProfileType int forProfile,
+            int forProfile,
             String tabLabel,
             String tabAccessibilityLabel,
             String tabTag,
