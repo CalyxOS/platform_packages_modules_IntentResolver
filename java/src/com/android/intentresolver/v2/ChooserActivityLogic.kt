@@ -2,6 +2,7 @@ package com.android.intentresolver.v2
 
 import android.app.Activity
 import android.content.Intent
+import android.os.UserHandle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.annotation.OpenForTesting
@@ -23,7 +24,7 @@ private const val TAG = "ChooserActivityLogic"
 open class ChooserActivityLogic(
     tag: String,
     activityProvider: () -> ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
     targetDataLoaderProvider: () -> TargetDataLoader,
     private val onPreInitialization: () -> Unit,
 ) :

@@ -1,6 +1,7 @@
 package com.android.intentresolver.v2
 
 import android.content.Intent
+import android.os.UserHandle
 import androidx.activity.ComponentActivity
 import androidx.annotation.OpenForTesting
 import com.android.intentresolver.R
@@ -13,7 +14,7 @@ import com.android.intentresolver.v2.util.mutableLazy
 open class ResolverActivityLogic(
     tag: String,
     activityProvider: () -> ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
 ) :
     ActivityLogic,
     CommonActivityLogic by CommonActivityLogicImpl(

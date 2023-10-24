@@ -13,6 +13,7 @@ import com.android.intentresolver.AnnotatedUserHandles
 import com.android.intentresolver.R
 import com.android.intentresolver.WorkProfileAvailabilityManager
 import com.android.intentresolver.icons.TargetDataLoader
+import com.google.common.collect.ImmutableList
 
 /**
  * Logic for IntentResolver Activities. Anything that is not the same across activities (including
@@ -85,7 +86,7 @@ interface CommonActivityLogic {
 class CommonActivityLogicImpl(
     override val tag: String,
     activityProvider: () -> ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
 ) : CommonActivityLogic {
 
     override val activity: ComponentActivity by lazy { activityProvider() }
@@ -116,7 +117,7 @@ class CommonActivityLogicImpl(
     override val workProfileAvailabilityManager: WorkProfileAvailabilityManager by lazy {
         WorkProfileAvailabilityManager(
             userManager,
-            annotatedUserHandles?.workProfileUserHandle,
+            annotatedUserHandles?.workProfileUserHandles ?: ImmutableList.of(),
             onWorkProfileStatusUpdated,
         )
     }

@@ -36,7 +36,9 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.common.collect.ImmutableList;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -54,9 +56,9 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
             Context context,
             ChooserGridAdapter adapter,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             int maxTargetsPerRow,
             FeatureFlags featureFlags) {
         this(
@@ -66,8 +68,8 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 /* defaultProfile= */ 0,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier(context),
                 featureFlags);
     }
@@ -75,23 +77,23 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
     public ChooserMultiProfilePagerAdapter(
             Context context,
             ChooserGridAdapter personalAdapter,
-            ChooserGridAdapter workAdapter,
+            List<ChooserGridAdapter> workAdapters,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            @Profile int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            int defaultProfile,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             int maxTargetsPerRow,
             FeatureFlags featureFlags) {
         this(
                 context,
                 new ChooserProfileAdapterBinder(maxTargetsPerRow),
-                ImmutableList.of(personalAdapter, workAdapter),
+                new ImmutableList.Builder().add(personalAdapter).addAll(workAdapters).build(),
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier(context),
                 featureFlags);
     }
@@ -101,10 +103,10 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
             ChooserProfileAdapterBinder adapterBinder,
             ImmutableList<ChooserGridAdapter> gridAdapters,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            @Profile int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            int defaultProfile,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             BottomPaddingOverrideSupplier bottomPaddingOverrideSupplier,
             FeatureFlags featureFlags) {
         super(
@@ -114,8 +116,8 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                         () -> makeProfileView(context, featureFlags),
                 bottomPaddingOverrideSupplier);
         mAdapterBinder = adapterBinder;

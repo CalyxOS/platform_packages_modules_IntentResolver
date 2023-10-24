@@ -51,6 +51,8 @@ import com.android.intentresolver.ResolvedComponentInfo;
 import com.android.intentresolver.ResolverDataProvider;
 import com.android.intentresolver.v2.UnbundledChooserActivityWorkProfileTest.TestCase.Tab;
 
+import com.google.common.collect.ImmutableList;
+
 import junit.framework.AssertionFailedError;
 
 import org.junit.Before;
