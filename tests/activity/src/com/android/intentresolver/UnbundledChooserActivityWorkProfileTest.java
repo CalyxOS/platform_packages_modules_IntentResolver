@@ -50,6 +50,8 @@ import androidx.test.rule.ActivityTestRule;
 
 import com.android.intentresolver.UnbundledChooserActivityWorkProfileTest.TestCase.Tab;
 
+import com.google.common.collect.ImmutableList;
+
 import junit.framework.AssertionFailedError;
 
 import org.junit.Before;

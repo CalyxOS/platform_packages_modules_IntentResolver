@@ -1,5 +1,6 @@
 package com.android.intentresolver.v2
 
+import android.os.UserHandle
 import androidx.activity.ComponentActivity
 import com.android.intentresolver.AnnotatedUserHandles
 import com.android.intentresolver.WorkProfileAvailabilityManager
@@ -8,7 +9,7 @@ import com.android.intentresolver.WorkProfileAvailabilityManager
 class TestResolverActivityLogic(
     tag: String,
     activityProvider: () -> ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
     private val overrideData: ResolverWrapperActivity.OverrideData,
 ) : ResolverActivityLogic(tag, activityProvider, onWorkProfileStatusUpdated) {
 

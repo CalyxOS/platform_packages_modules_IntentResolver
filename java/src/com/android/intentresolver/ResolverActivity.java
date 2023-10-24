@@ -102,7 +102,6 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.android.intentresolver.MultiProfilePagerAdapter.MyUserIdProvider;
 import com.android.intentresolver.MultiProfilePagerAdapter.OnSwitchOnWorkSelectedListener;
-import com.android.intentresolver.MultiProfilePagerAdapter.Profile;
 import com.android.intentresolver.chooser.DisplayResolveInfo;
 import com.android.intentresolver.chooser.TargetInfo;
 import com.android.intentresolver.emptystate.CompositeEmptyStateProvider;
@@ -123,6 +122,8 @@ import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto;
 import com.android.internal.util.LatencyTracker;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,6 +132,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * This is a copy of ResolverActivity to support IntentResolver's ChooserActivity. This code is
@@ -202,7 +204,7 @@ public class ResolverActivity extends FragmentActivity implements
     private static final String TAB_TAG_WORK = "work";
 
     private PackageMonitor mPersonalPackageMonitor;
-    private PackageMonitor mWorkPackageMonitor;
+    private final List<PackageMonitor> mWorkPackageMonitors = new ArrayList<>();
 
     private TargetDataLoader mTargetDataLoader;
 
@@ -457,10 +459,7 @@ public class ResolverActivity extends FragmentActivity implements
         mPersonalPackageMonitor.register(
                 this, getMainLooper(), getAnnotatedUserHandles().personalProfileUserHandle, false);
         if (shouldShowTabs()) {
-            mWorkPackageMonitor = createPackageMonitor(
-                    mMultiProfilePagerAdapter.getWorkListAdapter());
-            mWorkPackageMonitor.register(
-                    this, getMainLooper(), getAnnotatedUserHandles().workProfileUserHandle, false);
+            createAndRegisterWorkPackageMonitors();
         }
 
         mRegistered = true;
@@ -510,7 +509,7 @@ public class ResolverActivity extends FragmentActivity implements
         MultiProfilePagerAdapter resolverMultiProfilePagerAdapter = null;
         if (shouldShowTabs()) {
             resolverMultiProfilePagerAdapter =
-                    createResolverMultiProfilePagerAdapterForTwoProfiles(
+                    createResolverMultiProfilePagerAdapterForProfiles(
                             initialIntents, resolutionList, filterLastUsed, targetDataLoader);
         } else {
             resolverMultiProfilePagerAdapter = createResolverMultiProfilePagerAdapterForOneProfile(
@@ -642,9 +641,10 @@ public class ResolverActivity extends FragmentActivity implements
 
         if (mRegistered) {
             mPersonalPackageMonitor.unregister();
-            if (mWorkPackageMonitor != null) {
-                mWorkPackageMonitor.unregister();
+            for (PackageMonitor workPackageMonitor : mWorkPackageMonitors) {
+                workPackageMonitor.unregister();
             }
+            mWorkPackageMonitors.clear();
             mRegistered = false;
         }
         final Intent intent = getIntent();
@@ -1035,9 +1035,10 @@ public class ResolverActivity extends FragmentActivity implements
 
     @Override // ResolverListCommunicator
     public void onHandlePackagesChanged(ResolverListAdapter listAdapter) {
+        final UserHandle listUser = listAdapter.getUserHandle();
         if (listAdapter == mMultiProfilePagerAdapter.getActiveListAdapter()) {
-            if (listAdapter.getUserHandle().equals(getAnnotatedUserHandles().workProfileUserHandle)
-                    && mWorkProfileAvailability.isWaitingToEnableWorkProfile()) {
+            if (getAnnotatedUserHandles().workProfileUserHandles.contains(listUser)
+                    && mWorkProfileAvailability.isWaitingToEnableWorkProfile(listUser)) {
                 // We have just turned on the work profile and entered the pass code to start it,
                 // now we are waiting to receive the ACTION_USER_UNLOCKED broadcast. There is no
                 // point in reloading the list now, since the work profile user is still
@@ -1076,13 +1077,13 @@ public class ResolverActivity extends FragmentActivity implements
     protected WorkProfileAvailabilityManager createWorkProfileAvailabilityManager() {
         return new WorkProfileAvailabilityManager(
                 getSystemService(UserManager.class),
-                getAnnotatedUserHandles().workProfileUserHandle,
+                getAnnotatedUserHandles().workProfileUserHandles,
                 this::onWorkProfileStatusUpdated);
     }
 
-    protected void onWorkProfileStatusUpdated() {
-        if (mMultiProfilePagerAdapter.getCurrentUserHandle().equals(
-                getAnnotatedUserHandles().workProfileUserHandle)) {
+    protected void onWorkProfileStatusUpdated(UserHandle workProfileUserHandle) {
+        final UserHandle currentUserHandle = mMultiProfilePagerAdapter.getCurrentUserHandle();
+        if (workProfileUserHandle.equals(currentUserHandle)) {
             mMultiProfilePagerAdapter.rebuildActiveTab(true);
         } else {
             mMultiProfilePagerAdapter.clearInactiveProfileCache();
@@ -1101,7 +1102,7 @@ public class ResolverActivity extends FragmentActivity implements
             TargetDataLoader targetDataLoader) {
         UserHandle initialIntentsUserSpace = isLaunchedAsCloneProfile()
                 && userHandle.equals(getAnnotatedUserHandles().personalProfileUserHandle)
-                ? getAnnotatedUserHandles().cloneProfileUserHandle : userHandle;
+                ? getAnnotatedUserHandles().userHandleSharesheetLaunchedAs : userHandle;
         return new ResolverListAdapter(
                 context,
                 payloadIntents,
@@ -1140,11 +1141,11 @@ public class ResolverActivity extends FragmentActivity implements
     }
 
     protected final EmptyStateProvider createEmptyStateProvider(
-            @Nullable UserHandle workProfileUserHandle) {
+            ImmutableList<UserHandle> workProfileUserHandles) {
         final EmptyStateProvider blockerEmptyStateProvider = createBlockerEmptyStateProvider();
 
         final EmptyStateProvider workProfileOffEmptyStateProvider =
-                new WorkProfilePausedEmptyStateProvider(this, workProfileUserHandle,
+                new WorkProfilePausedEmptyStateProvider(this, workProfileUserHandles,
                         mWorkProfileAvailability,
                         /* onSwitchOnWorkSelectedListener= */
                         () -> {
@@ -1156,7 +1157,7 @@ public class ResolverActivity extends FragmentActivity implements
 
         final EmptyStateProvider noAppsEmptyStateProvider = new NoAppsAvailableEmptyStateProvider(
                 this,
-                workProfileUserHandle,
+                workProfileUserHandles,
                 getAnnotatedUserHandles().personalProfileUserHandle,
                 getMetricsCategory(),
                 getAnnotatedUserHandles().tabOwnerUserHandleForLaunch
@@ -1214,10 +1215,10 @@ public class ResolverActivity extends FragmentActivity implements
         return new ResolverMultiProfilePagerAdapter(
                 /* context */ this,
                 adapter,
-                createEmptyStateProvider(/* workProfileUserHandle= */ null),
-                /* workProfileQuietModeChecker= */ () -> false,
-                /* workProfileUserHandle= */ null,
-                getAnnotatedUserHandles().cloneProfileUserHandle);
+                createEmptyStateProvider(/* workProfileUserHandles= */ ImmutableList.of()),
+                /* workProfileQuietModeChecker= */ (userHandle) -> false,
+                /* workProfileUserHandles= */ ImmutableList.of(),
+                getAnnotatedUserHandles().cloneProfileUserHandles);
     }
 
     private UserHandle getIntentUser() {
@@ -1226,7 +1227,7 @@ public class ResolverActivity extends FragmentActivity implements
                 : getAnnotatedUserHandles().tabOwnerUserHandleForLaunch;
     }
 
-    private ResolverMultiProfilePagerAdapter createResolverMultiProfilePagerAdapterForTwoProfiles(
+    private ResolverMultiProfilePagerAdapter createResolverMultiProfilePagerAdapterForProfiles(
             Intent[] initialIntents,
             List<ResolveInfo> resolutionList,
             boolean filterLastUsed,
@@ -1239,7 +1240,7 @@ public class ResolverActivity extends FragmentActivity implements
         if (!getAnnotatedUserHandles().tabOwnerUserHandleForLaunch.equals(intentUser)) {
             if (getAnnotatedUserHandles().personalProfileUserHandle.equals(intentUser)) {
                 selectedProfile = PROFILE_PERSONAL;
-            } else if (getAnnotatedUserHandles().workProfileUserHandle.equals(intentUser)) {
+            } else if (getAnnotatedUserHandles().workProfileUserHandles.contains(intentUser)) {
                 selectedProfile = PROFILE_WORK;
             }
         } else {
@@ -1260,25 +1261,28 @@ public class ResolverActivity extends FragmentActivity implements
                         == getAnnotatedUserHandles().personalProfileUserHandle.getIdentifier()),
                 /* userHandle */ getAnnotatedUserHandles().personalProfileUserHandle,
                 targetDataLoader);
-        UserHandle workProfileUserHandle = getAnnotatedUserHandles().workProfileUserHandle;
-        ResolverListAdapter workAdapter = createResolverListAdapter(
-                /* context */ this,
-                /* payloadIntents */ mIntents,
-                selectedProfile == PROFILE_WORK ? initialIntents : null,
-                resolutionList,
-                (filterLastUsed && UserHandle.myUserId()
-                        == workProfileUserHandle.getIdentifier()),
-                /* userHandle */ workProfileUserHandle,
-                targetDataLoader);
+        final Intent[] initialIntentsForWork = selectedProfile != PROFILE_PERSONAL
+                ? initialIntents : null;
+        List<ResolverListAdapter> workAdapters = getAnnotatedUserHandles().workProfileUserHandles
+                .stream().map(workProfileUserHandle -> createResolverListAdapter(
+                        /* context */ this,
+                        /* payloadIntents */ mIntents,
+                        initialIntentsForWork,
+                        resolutionList,
+                        (filterLastUsed && UserHandle.myUserId()
+                                == workProfileUserHandle.getIdentifier()),
+                        /* userHandle */ workProfileUserHandle,
+                        targetDataLoader)
+                ).collect(Collectors.toList());
         return new ResolverMultiProfilePagerAdapter(
                 /* context */ this,
                 personalAdapter,
-                workAdapter,
-                createEmptyStateProvider(workProfileUserHandle),
-                () -> mWorkProfileAvailability.isQuietModeEnabled(),
+                workAdapters,
+                createEmptyStateProvider(getAnnotatedUserHandles().workProfileUserHandles),
+                (userHandle) -> mWorkProfileAvailability.isQuietModeEnabled(userHandle),
                 selectedProfile,
-                workProfileUserHandle,
-                getAnnotatedUserHandles().cloneProfileUserHandle);
+                getAnnotatedUserHandles().workProfileUserHandles,
+                getAnnotatedUserHandles().cloneProfileUserHandles);
     }
 
     /**
@@ -1300,7 +1304,7 @@ public class ResolverActivity extends FragmentActivity implements
         return selectedProfile;
     }
 
-    protected final @Profile int getCurrentProfile() {
+    protected final int getCurrentProfile() {
         UserHandle launchUser = getAnnotatedUserHandles().tabOwnerUserHandleForLaunch;
         UserHandle personalUser = getAnnotatedUserHandles().personalProfileUserHandle;
         return launchUser.equals(personalUser) ? PROFILE_PERSONAL : PROFILE_WORK;
@@ -1311,17 +1315,17 @@ public class ResolverActivity extends FragmentActivity implements
     }
 
     private boolean hasWorkProfile() {
-        return getAnnotatedUserHandles().workProfileUserHandle != null;
+        return !getAnnotatedUserHandles().workProfileUserHandles.isEmpty();
     }
 
     private boolean hasCloneProfile() {
-        return getAnnotatedUserHandles().cloneProfileUserHandle != null;
+        return !getAnnotatedUserHandles().cloneProfileUserHandles.isEmpty();
     }
 
     protected final boolean isLaunchedAsCloneProfile() {
         UserHandle launchUser = getAnnotatedUserHandles().userHandleSharesheetLaunchedAs;
-        UserHandle cloneUser = getAnnotatedUserHandles().cloneProfileUserHandle;
-        return hasCloneProfile() && launchUser.equals(cloneUser);
+        return hasCloneProfile()
+                && getAnnotatedUserHandles().cloneProfileUserHandles.contains(launchUser);
     }
 
     protected final boolean shouldShowTabs() {
@@ -1487,6 +1491,16 @@ public class ResolverActivity extends FragmentActivity implements
         }
     }
 
+    private void createAndRegisterWorkPackageMonitors() {
+        mWorkPackageMonitors.clear();
+        for (UserHandle workProfileUser : getAnnotatedUserHandles().workProfileUserHandles) {
+            PackageMonitor workPackageMonitor = createPackageMonitor(
+                    mMultiProfilePagerAdapter.getListAdapterForUserHandle(workProfileUser));
+            workPackageMonitor.register(this, getMainLooper(), workProfileUser, false);
+            mWorkPackageMonitors.add(workPackageMonitor);
+        }
+    }
+
     @Override
     protected final void onRestart() {
         super.onRestart();
@@ -1497,21 +1511,18 @@ public class ResolverActivity extends FragmentActivity implements
                     getAnnotatedUserHandles().personalProfileUserHandle,
                     false);
             if (shouldShowTabs()) {
-                if (mWorkPackageMonitor == null) {
-                    mWorkPackageMonitor = createPackageMonitor(
-                            mMultiProfilePagerAdapter.getWorkListAdapter());
-                }
-                mWorkPackageMonitor.register(
-                        this,
-                        getMainLooper(),
-                        getAnnotatedUserHandles().workProfileUserHandle,
-                        false);
+                createAndRegisterWorkPackageMonitors();
             }
             mRegistered = true;
         }
-        if (shouldShowTabs() && mWorkProfileAvailability.isWaitingToEnableWorkProfile()) {
-            if (mWorkProfileAvailability.isQuietModeEnabled()) {
-                mWorkProfileAvailability.markWorkProfileEnabledBroadcastReceived();
+        if (shouldShowTabs()) {
+            for (UserHandle workProfileUserHandle :
+                    getAnnotatedUserHandles().workProfileUserHandles) {
+                if (mWorkProfileAvailability.isWaitingToEnableWorkProfile(workProfileUserHandle)
+                        && mWorkProfileAvailability.isQuietModeEnabled(workProfileUserHandle)) {
+                    mWorkProfileAvailability.markWorkProfileEnabledBroadcastReceived(
+                            workProfileUserHandle);
+                }
             }
         }
         mMultiProfilePagerAdapter.getActiveListAdapter().handlePackagesChanged();
@@ -1705,9 +1716,10 @@ public class ResolverActivity extends FragmentActivity implements
             if (mPersonalPackageMonitor != null) {
                 mPersonalPackageMonitor.unregister();
             }
-            if (mWorkPackageMonitor != null) {
-                mWorkPackageMonitor.unregister();
+            for (PackageMonitor workPackageMonitor : mWorkPackageMonitors) {
+                workPackageMonitor.unregister();
             }
+            mWorkPackageMonitors.clear();
             mRegistered = false;
         }
         // If needed, show that intent is forwarded
@@ -2053,15 +2065,20 @@ public class ResolverActivity extends FragmentActivity implements
                 .setIndicator(personalButton);
         tabHost.addTab(tabSpec);
 
-        Button workButton = (Button) getLayoutInflater().inflate(
-                R.layout.resolver_profile_tab_button, tabHost.getTabWidget(), false);
-        workButton.setText(getWorkTabLabel());
-        workButton.setContentDescription(getWorkTabAccessibilityLabel());
+        int workProfilePagerItemId = 1;
+        for (UserHandle workProfileUserHandle : getAnnotatedUserHandles().workProfileUserHandles) {
+            Button workButton = (Button) getLayoutInflater().inflate(
+                    R.layout.resolver_profile_tab_button, tabHost.getTabWidget(), false);
+            workButton.setText(getWorkTabLabel(workProfileUserHandle));
+            workButton.setContentDescription(getWorkTabAccessibilityLabel(workProfileUserHandle));
 
-        tabSpec = tabHost.newTabSpec(TAB_TAG_WORK)
-                .setContent(com.android.internal.R.id.profile_pager)
-                .setIndicator(workButton);
-        tabHost.addTab(tabSpec);
+            tabSpec = tabHost.newTabSpec(Integer.toString(workProfilePagerItemId))
+                    .setContent(com.android.internal.R.id.profile_pager)
+                    .setIndicator(workButton);
+            tabHost.addTab(tabSpec);
+
+            workProfilePagerItemId++;
+        }
 
         TabWidget tabWidget = tabHost.getTabWidget();
         tabWidget.setVisibility(View.VISIBLE);
@@ -2072,7 +2089,11 @@ public class ResolverActivity extends FragmentActivity implements
             if (TAB_TAG_PERSONAL.equals(tabId)) {
                 viewPager.setCurrentItem(0);
             } else {
-                viewPager.setCurrentItem(1);
+                try {
+                    viewPager.setCurrentItem(Integer.parseInt(tabId));
+                } catch (NumberFormatException e) {
+                    viewPager.setCurrentItem(1);
+                }
             }
             setupViewVisibilities();
             maybeLogProfileChange();
@@ -2113,7 +2134,8 @@ public class ResolverActivity extends FragmentActivity implements
                 RESOLVER_PERSONAL_TAB, () -> getString(R.string.resolver_personal_tab));
     }
 
-    private String getWorkTabLabel() {
+    private String getWorkTabLabel(UserHandle workProfileUserHandle) {
+        // TODO: Incorporate details of the actual work profile here?
         return getSystemService(DevicePolicyManager.class).getResources().getString(
                 RESOLVER_WORK_TAB, () -> getString(R.string.resolver_work_tab));
     }
@@ -2146,7 +2168,8 @@ public class ResolverActivity extends FragmentActivity implements
                 () -> getString(R.string.resolver_personal_tab_accessibility));
     }
 
-    private String getWorkTabAccessibilityLabel() {
+    private String getWorkTabAccessibilityLabel(UserHandle workProfileUserHandle) {
+        // TODO: Incorporate details of the actual work profile here?
         return getSystemService(DevicePolicyManager.class).getResources().getString(
                 RESOLVER_WORK_TAB_ACCESSIBILITY,
                 () -> getString(R.string.resolver_work_tab_accessibility));
@@ -2161,10 +2184,10 @@ public class ResolverActivity extends FragmentActivity implements
 
     private void updateActiveTabStyle(TabHost tabHost) {
         int currentTab = tabHost.getCurrentTab();
-        TextView selected = (TextView) tabHost.getTabWidget().getChildAt(currentTab);
-        TextView unselected = (TextView) tabHost.getTabWidget().getChildAt(1 - currentTab);
-        selected.setSelected(true);
-        unselected.setSelected(false);
+        for (int i = 0; i < tabHost.getTabWidget().getChildCount(); i++) {
+            TextView textView = (TextView) tabHost.getTabWidget().getChildAt(i);
+            textView.setSelected(i == currentTab);
+        }
     }
 
     private void setupViewVisibilities() {
@@ -2404,9 +2427,8 @@ public class ResolverActivity extends FragmentActivity implements
         // Add clonedProfileUserHandle to the list only if we are:
         // a. Building the Personal Tab.
         // b. CloneProfile exists on the device.
-        if (userHandle.equals(getAnnotatedUserHandles().personalProfileUserHandle)
-                && hasCloneProfile()) {
-            userList.add(getAnnotatedUserHandles().cloneProfileUserHandle);
+        if (userHandle.equals(getAnnotatedUserHandles().personalProfileUserHandle)) {
+            userList.addAll(getAnnotatedUserHandles().cloneProfileUserHandles);
         }
         return userList;
     }

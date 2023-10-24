@@ -1,5 +1,6 @@
 package com.android.intentresolver.v2
 
+import android.os.UserHandle
 import androidx.activity.ComponentActivity
 import com.android.intentresolver.AnnotatedUserHandles
 import com.android.intentresolver.WorkProfileAvailabilityManager
@@ -9,7 +10,7 @@ import com.android.intentresolver.icons.TargetDataLoader
 class TestChooserActivityLogic(
     tag: String,
     activityProvider: () -> ComponentActivity,
-    onWorkProfileStatusUpdated: () -> Unit,
+    onWorkProfileStatusUpdated: (UserHandle) -> Unit,
     targetDataLoaderProvider: () -> TargetDataLoader,
     onPreinitialization: () -> Unit,
     private val overrideData: ChooserActivityOverrideData,

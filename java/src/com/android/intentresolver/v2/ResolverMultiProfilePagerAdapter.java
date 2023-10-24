@@ -31,7 +31,9 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.common.collect.ImmutableList;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -46,36 +48,37 @@ public class ResolverMultiProfilePagerAdapter extends
             Context context,
             ResolverListAdapter adapter,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle) {
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles) {
         this(
                 context,
                 ImmutableList.of(adapter),
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 /* defaultProfile= */ 0,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier());
     }
 
     public ResolverMultiProfilePagerAdapter(Context context,
                                             ResolverListAdapter personalAdapter,
-                                            ResolverListAdapter workAdapter,
+                                            List<ResolverListAdapter> workAdapters,
                                             EmptyStateProvider emptyStateProvider,
-                                            Supplier<Boolean> workProfileQuietModeChecker,
-                                            @Profile int defaultProfile,
-                                            UserHandle workProfileUserHandle,
-                                            UserHandle cloneProfileUserHandle) {
+                                            Function<UserHandle, Boolean>
+                                                    workProfileQuietModeChecker,
+                                            int defaultProfile,
+                                            ImmutableList<UserHandle> workProfileUserHandles,
+                                            ImmutableList<UserHandle> cloneProfileUserHandles) {
         this(
                 context,
-                ImmutableList.of(personalAdapter, workAdapter),
+                new ImmutableList.Builder().add(personalAdapter).addAll(workAdapters).build(),
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier());
     }
 
@@ -83,10 +86,10 @@ public class ResolverMultiProfilePagerAdapter extends
             Context context,
             ImmutableList<ResolverListAdapter> listAdapters,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            @Profile int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            int defaultProfile,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             BottomPaddingOverrideSupplier bottomPaddingOverrideSupplier) {
         super(
                         listAdapter -> listAdapter,
@@ -95,8 +98,8 @@ public class ResolverMultiProfilePagerAdapter extends
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                         () -> (ViewGroup) LayoutInflater.from(context).inflate(
                                 R.layout.resolver_list_per_profile, null, false),
                 bottomPaddingOverrideSupplier);
