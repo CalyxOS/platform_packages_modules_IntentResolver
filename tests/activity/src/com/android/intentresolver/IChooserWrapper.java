@@ -35,7 +35,7 @@ import java.util.concurrent.Executor;
 public interface IChooserWrapper {
     ChooserListAdapter getAdapter();
     ChooserListAdapter getPersonalListAdapter();
-    ChooserListAdapter getWorkListAdapter();
+    ChooserListAdapter getListAdapterForUserHandle(UserHandle userHandle);
     boolean getIsSelected();
     UsageStatsManager getUsageStatsManager();
     DisplayResolveInfo createTestDisplayResolveInfo(

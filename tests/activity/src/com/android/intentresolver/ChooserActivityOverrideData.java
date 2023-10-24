@@ -93,27 +93,28 @@ public class ChooserActivityOverrideData {
         isQuietModeEnabled = false;
         myUserId = null;
         packageManager = null;
-        mWorkProfileAvailability = new WorkProfileAvailabilityManager(null, null, null) {
+        mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
+                workProfileUserHandles, null) {
             @Override
-            public boolean isQuietModeEnabled() {
+            public boolean isQuietModeEnabled(UserHandle userHandle) {
                 return isQuietModeEnabled;
             }
 
             @Override
-            public boolean isWorkProfileUserUnlocked() {
+            public boolean isWorkProfileUserUnlocked(UserHandle userHandle) {
                 return true;
             }
 
             @Override
-            public void requestQuietModeEnabled(boolean enabled) {
+            public void requestQuietModeEnabled(UserHandle userHandle, boolean enabled) {
                 isQuietModeEnabled = enabled;
             }
 
             @Override
-            public void markWorkProfileEnabledBroadcastReceived() {}
+            public void markWorkProfileEnabledBroadcastReceived(UserHandle userHandle) {}
 
             @Override
-            public boolean isWaitingToEnableWorkProfile() {
+            public boolean isWaitingToEnableWorkProfile(UserHandle userHandle) {
                 return false;
             }
         };

@@ -108,12 +108,8 @@ public class ChooserWrapperActivity extends ChooserActivity implements IChooserW
     }
 
     @Override
-    public ChooserListAdapter getWorkListAdapter() {
-        if (mMultiProfilePagerAdapter.getInactiveListAdapter() == null) {
-            return null;
-        }
-        return ((ChooserGridAdapter) mMultiProfilePagerAdapter.getAdapterForIndex(1))
-                .getListAdapter();
+    public ChooserListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
+        return mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(userHandle);
     }
 
     @Override
