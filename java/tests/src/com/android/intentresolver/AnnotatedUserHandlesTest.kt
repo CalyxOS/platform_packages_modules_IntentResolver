@@ -19,6 +19,7 @@ package com.android.intentresolver
 import android.os.UserHandle
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.collect.ImmutableList
 
 import org.junit.Test
 
@@ -30,15 +31,18 @@ class AnnotatedUserHandlesTest {
             .setUserIdOfCallingApp(42)
             .setUserHandleSharesheetLaunchedAs(UserHandle.of(116))
             .setPersonalProfileUserHandle(UserHandle.of(117))
-            .setWorkProfileUserHandle(UserHandle.of(118))
-            .setCloneProfileUserHandle(UserHandle.of(119))
+            .setWorkProfileUserHandles(ImmutableList.of(UserHandle.of(118), UserHandle.of(119)))
+            .setCloneProfileUserHandles(ImmutableList.of(UserHandle.of(120)))
             .build()
 
         assertThat(info.userIdOfCallingApp).isEqualTo(42)
         assertThat(info.userHandleSharesheetLaunchedAs.identifier).isEqualTo(116)
         assertThat(info.personalProfileUserHandle.identifier).isEqualTo(117)
-        assertThat(info.workProfileUserHandle.identifier).isEqualTo(118)
-        assertThat(info.cloneProfileUserHandle.identifier).isEqualTo(119)
+        assertThat(info.workProfileUserHandles.get(0).identifier).isEqualTo(118)
+        assertThat(info.workProfileUserHandles.get(1).identifier).isEqualTo(119)
+        assertThat(info.workProfileUserHandles.size).isEqualTo(2)
+        assertThat(info.cloneProfileUserHandles.get(0).identifier).isEqualTo(120)
+        assertThat(info.cloneProfileUserHandles.size).isEqualTo(1)
     }
 
     @Test
@@ -46,7 +50,7 @@ class AnnotatedUserHandlesTest {
         val info = AnnotatedUserHandles.newBuilder()
             .setUserIdOfCallingApp(42)
             .setPersonalProfileUserHandle(UserHandle.of(101))
-            .setWorkProfileUserHandle(UserHandle.of(202))
+            .setWorkProfileUserHandles(ImmutableList.of(UserHandle.of(202), UserHandle.of(203)))
             .setUserHandleSharesheetLaunchedAs(UserHandle.of(202))
             .build()
 
@@ -58,7 +62,7 @@ class AnnotatedUserHandlesTest {
         val info = AnnotatedUserHandles.newBuilder()
             .setUserIdOfCallingApp(42)
             .setPersonalProfileUserHandle(UserHandle.of(101))
-            .setWorkProfileUserHandle(UserHandle.of(202))
+            .setWorkProfileUserHandles(ImmutableList.of(UserHandle.of(202), UserHandle.of(203)))
             .setUserHandleSharesheetLaunchedAs(UserHandle.of(101))
             .build()
 
@@ -70,7 +74,7 @@ class AnnotatedUserHandlesTest {
         val info = AnnotatedUserHandles.newBuilder()
             .setUserIdOfCallingApp(42)
             .setPersonalProfileUserHandle(UserHandle.of(101))
-            .setWorkProfileUserHandle(UserHandle.of(202))
+            .setWorkProfileUserHandles(ImmutableList.of(UserHandle.of(202), UserHandle.of(203)))
             .setUserHandleSharesheetLaunchedAs(UserHandle.of(303))
             .build()
 

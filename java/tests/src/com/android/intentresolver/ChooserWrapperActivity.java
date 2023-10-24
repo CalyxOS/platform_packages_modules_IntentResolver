@@ -44,6 +44,8 @@ import com.android.intentresolver.logging.EventLog;
 import com.android.intentresolver.shortcuts.ShortcutLoader;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -109,12 +111,8 @@ public class ChooserWrapperActivity
     }
 
     @Override
-    public ChooserListAdapter getWorkListAdapter() {
-        if (mMultiProfilePagerAdapter.getInactiveListAdapter() == null) {
-            return null;
-        }
-        return ((ChooserGridAdapter) mMultiProfilePagerAdapter.getAdapterForIndex(1))
-                .getListAdapter();
+    public ChooserListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
+        return mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(userHandle);
     }
 
     @Override
@@ -245,8 +243,8 @@ public class ChooserWrapperActivity
     }
 
     @Override
-    protected UserHandle getWorkProfileUserHandle() {
-        return sOverrides.workProfileUserHandle;
+    protected ImmutableList<UserHandle> getWorkProfileUserHandles() {
+        return sOverrides.workProfileUserHandles;
     }
 
     @Override

@@ -40,6 +40,8 @@ import com.android.intentresolver.chooser.SelectableTargetInfo;
 import com.android.intentresolver.chooser.TargetInfo;
 import com.android.intentresolver.icons.TargetDataLoader;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -115,11 +117,9 @@ public class ResolverWrapperActivity extends ResolverActivity {
         return ((ResolverListAdapter) mMultiProfilePagerAdapter.getAdapterForIndex(0));
     }
 
-    ResolverListAdapter getWorkListAdapter() {
-        if (mMultiProfilePagerAdapter.getInactiveListAdapter() == null) {
-            return null;
-        }
-        return ((ResolverListAdapter) mMultiProfilePagerAdapter.getAdapterForIndex(1));
+    ResolverListAdapter getListAdapterForUserHandle(UserHandle userHandle) {
+        return ((ResolverListAdapter) mMultiProfilePagerAdapter
+                .getListAdapterForUserHandle(userHandle));
     }
 
     @Override
@@ -161,13 +161,13 @@ public class ResolverWrapperActivity extends ResolverActivity {
     }
 
     @Override
-    protected UserHandle getWorkProfileUserHandle() {
-        return sOverrides.workProfileUserHandle;
+    protected ImmutableList<UserHandle> getWorkProfileUserHandles() {
+        return sOverrides.workProfileUserHandles;
     }
 
     @Override
-    protected UserHandle getCloneProfileUserHandle() {
-        return sOverrides.cloneProfileUserHandle;
+    protected ImmutableList<UserHandle> getCloneProfileUserHandles() {
+        return sOverrides.cloneProfileUserHandles;
     }
 
     @Override
@@ -193,8 +193,8 @@ public class ResolverWrapperActivity extends ResolverActivity {
         public ResolverListController resolverListController;
         public ResolverListController workResolverListController;
         public Boolean isVoiceInteraction;
-        public UserHandle workProfileUserHandle;
-        public UserHandle cloneProfileUserHandle;
+        public ImmutableList<UserHandle> workProfileUserHandles;
+        public ImmutableList<UserHandle> cloneProfileUserHandles;
         public UserHandle tabOwnerUserHandleForLaunch;
         public Integer myUserId;
         public boolean hasCrossProfileIntents;
@@ -208,34 +208,35 @@ public class ResolverWrapperActivity extends ResolverActivity {
             createPackageManager = null;
             resolverListController = mock(ResolverListController.class);
             workResolverListController = mock(ResolverListController.class);
-            workProfileUserHandle = null;
-            cloneProfileUserHandle = null;
+            workProfileUserHandles = ImmutableList.of();
+            cloneProfileUserHandles = ImmutableList.of();
             tabOwnerUserHandleForLaunch = null;
             myUserId = null;
             hasCrossProfileIntents = true;
             isQuietModeEnabled = false;
 
-            mWorkProfileAvailability = new WorkProfileAvailabilityManager(null, null, null) {
+            mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
+                    workProfileUserHandles, null) {
                 @Override
-                public boolean isQuietModeEnabled() {
+                public boolean isQuietModeEnabled(UserHandle userHandle) {
                     return isQuietModeEnabled;
                 }
 
                 @Override
-                public boolean isWorkProfileUserUnlocked() {
+                public boolean isWorkProfileUserUnlocked(UserHandle userHandle) {
                     return true;
                 }
 
                 @Override
-                public void requestQuietModeEnabled(boolean enabled) {
+                public void requestQuietModeEnabled(UserHandle userHandle, boolean enabled) {
                     isQuietModeEnabled = enabled;
                 }
 
                 @Override
-                public void markWorkProfileEnabledBroadcastReceived() {}
+                public void markWorkProfileEnabledBroadcastReceived(UserHandle userHandle) {}
 
                 @Override
-                public boolean isWaitingToEnableWorkProfile() {
+                public boolean isWaitingToEnableWorkProfile(UserHandle userHandle) {
                     return false;
                 }
             };
