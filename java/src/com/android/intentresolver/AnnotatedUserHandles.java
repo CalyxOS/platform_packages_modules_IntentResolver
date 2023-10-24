@@ -24,7 +24,10 @@ import android.os.UserManager;
 
 import androidx.annotation.VisibleForTesting;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.Comparator;
+import java.util.stream.Collectors;
 
 /**
  * Helper class to precompute the (immutable) designations of various user handles in the system
@@ -58,17 +61,15 @@ public final class AnnotatedUserHandles {
     public final UserHandle personalProfileUserHandle;
 
     /**
-     * The {@link UserHandle} that owns the "work tab" in a tabbed share UI. This is (an arbitrary)
-     * one of the "managed" profiles associated with {@link personalProfileUserHandle}.
+     * The {@link UserHandle}(s) that own the "work tab"(s) in a tabbed share UI.
      */
-    @Nullable
-    public final UserHandle workProfileUserHandle;
+    public final ImmutableList<UserHandle> workProfileUserHandles;
 
     /**
-     * The {@link UserHandle} of the clone profile belonging to {@link personalProfileUserHandle}.
+     * The {@link UserHandle}(s) of the clone profile(s) belonging to
+     * {@link personalProfileUserHandle}.
      */
-    @Nullable
-    public final UserHandle cloneProfileUserHandle;
+    public final ImmutableList<UserHandle> cloneProfileUserHandles;
 
     /**
      * The "tab owner" user handle (i.e., either {@link personalProfileUserHandle} or
@@ -103,11 +104,11 @@ public final class AnnotatedUserHandles {
                 .setUserIdOfCallingApp(callingUid)
                 .setUserHandleSharesheetLaunchedAs(userHandleSharesheetLaunchedAs)
                 .setPersonalProfileUserHandle(personalProfileUserHandle)
-                .setWorkProfileUserHandle(
-                        getWorkProfileForUser(userManager, personalProfileUserHandle,
+                .setWorkProfileUserHandles(
+                        getWorkProfilesForUser(userManager, personalProfileUserHandle,
                                 callingUserHandle))
-                .setCloneProfileUserHandle(
-                        getCloneProfileForUser(userManager, personalProfileUserHandle,
+                .setCloneProfileUserHandles(
+                        getCloneProfilesForUser(userManager, personalProfileUserHandle,
                                 callingUserHandle))
                 .build();
     }
@@ -128,21 +129,21 @@ public final class AnnotatedUserHandles {
         // (secondary user case), as clone profile is guaranteed to be non-active in that case.
         UserHandle queryIntentsUser = userHandle;
         if (isLaunchedAsCloneProfile() && userHandle.equals(personalProfileUserHandle)) {
-            queryIntentsUser = cloneProfileUserHandle;
+            queryIntentsUser = userHandleSharesheetLaunchedAs;
         }
         return queryIntentsUser;
     }
 
     private Boolean isLaunchedAsCloneProfile() {
-        return userHandleSharesheetLaunchedAs.equals(cloneProfileUserHandle);
+        return cloneProfileUserHandles.contains(userHandleSharesheetLaunchedAs);
     }
 
     private AnnotatedUserHandles(
             int userIdOfCallingApp,
             UserHandle userHandleSharesheetLaunchedAs,
             UserHandle personalProfileUserHandle,
-            @Nullable UserHandle workProfileUserHandle,
-            @Nullable UserHandle cloneProfileUserHandle) {
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles) {
         if ((userIdOfCallingApp < 0) || UserHandle.isIsolated(userIdOfCallingApp)) {
             throw new SecurityException("Can't start a resolver from uid " + userIdOfCallingApp);
         }
@@ -150,39 +151,34 @@ public final class AnnotatedUserHandles {
         this.userIdOfCallingApp = userIdOfCallingApp;
         this.userHandleSharesheetLaunchedAs = userHandleSharesheetLaunchedAs;
         this.personalProfileUserHandle = personalProfileUserHandle;
-        this.workProfileUserHandle = workProfileUserHandle;
-        this.cloneProfileUserHandle = cloneProfileUserHandle;
+        this.workProfileUserHandles = workProfileUserHandles;
+        this.cloneProfileUserHandles = cloneProfileUserHandles;
         this.tabOwnerUserHandleForLaunch =
-                (userHandleSharesheetLaunchedAs == workProfileUserHandle)
-                    ? workProfileUserHandle : personalProfileUserHandle;
+                (workProfileUserHandles.contains(userHandleSharesheetLaunchedAs))
+                    ? userHandleSharesheetLaunchedAs : personalProfileUserHandle;
     }
 
-    @Nullable
-    private static UserHandle getWorkProfileForUser(
+    private static ImmutableList<UserHandle> getWorkProfilesForUser(
             UserManager userManager, UserHandle profileOwnerUserHandle,
             UserHandle callingUserHandle) {
-        return userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
+        // callingUserHandle currently not used.
+        return ImmutableList.copyOf(userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
                 .stream()
                 .filter(info -> info.isManagedProfile())
                 .map(info -> info.getUserHandle())
-                // prefer to return callingUserHandle if applicable
-                .sorted(Comparator.comparing(u -> !u.equals(callingUserHandle)))
-                .findFirst()
-                .orElse(null);
+                .collect(Collectors.toList()));
     }
 
-    @Nullable
-    private static UserHandle getCloneProfileForUser(
+    private static ImmutableList<UserHandle> getCloneProfilesForUser(
             UserManager userManager, UserHandle profileOwnerUserHandle,
             UserHandle callingUserHandle) {
-        return userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
+        return ImmutableList.copyOf(userManager.getProfiles(profileOwnerUserHandle.getIdentifier())
                 .stream()
                 .filter(info -> info.isCloneProfile())
                 .map(info -> info.getUserHandle())
                 // prefer to return callingUserHandle if applicable
                 .sorted(Comparator.comparing(u -> !u.equals(callingUserHandle)))
-                .findFirst()
-                .orElse(null);
+                .collect(Collectors.toList()));
     }
 
     @VisibleForTesting
@@ -190,8 +186,8 @@ public final class AnnotatedUserHandles {
         private int mUserIdOfCallingApp;
         private UserHandle mUserHandleSharesheetLaunchedAs;
         private UserHandle mPersonalProfileUserHandle;
-        private UserHandle mWorkProfileUserHandle;
-        private UserHandle mCloneProfileUserHandle;
+        private ImmutableList<UserHandle> mWorkProfileUserHandles;
+        private ImmutableList<UserHandle> mCloneProfileUserHandles;
 
         public Builder setUserIdOfCallingApp(int id) {
             mUserIdOfCallingApp = id;
@@ -208,13 +204,13 @@ public final class AnnotatedUserHandles {
             return this;
         }
 
-        public Builder setWorkProfileUserHandle(UserHandle user) {
-            mWorkProfileUserHandle = user;
+        public Builder setWorkProfileUserHandles(ImmutableList<UserHandle> users) {
+            mWorkProfileUserHandles = users;
             return this;
         }
 
-        public Builder setCloneProfileUserHandle(UserHandle user) {
-            mCloneProfileUserHandle = user;
+        public Builder setCloneProfileUserHandles(ImmutableList<UserHandle> users) {
+            mCloneProfileUserHandles = users;
             return this;
         }
 
@@ -223,8 +219,8 @@ public final class AnnotatedUserHandles {
                     mUserIdOfCallingApp,
                     mUserHandleSharesheetLaunchedAs,
                     mPersonalProfileUserHandle,
-                    mWorkProfileUserHandle,
-                    mCloneProfileUserHandle);
+                    mWorkProfileUserHandles,
+                    mCloneProfileUserHandles);
         }
     }
 }

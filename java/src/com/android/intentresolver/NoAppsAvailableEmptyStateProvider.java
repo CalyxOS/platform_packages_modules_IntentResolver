@@ -32,6 +32,8 @@ import com.android.intentresolver.AbstractMultiProfilePagerAdapter.EmptyState;
 import com.android.intentresolver.AbstractMultiProfilePagerAdapter.EmptyStateProvider;
 import com.android.internal.R;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.List;
 
 /**
@@ -42,8 +44,8 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
 
     @NonNull
     private final Context mContext;
-    @Nullable
-    private final UserHandle mWorkProfileUserHandle;
+    @NonNull
+    private final ImmutableList<UserHandle> mWorkProfileUserHandles;
     @Nullable
     private final UserHandle mPersonalProfileUserHandle;
     @NonNull
@@ -51,11 +53,12 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
     @NonNull
     private final UserHandle mTabOwnerUserHandleForLaunch;
 
-    public NoAppsAvailableEmptyStateProvider(Context context, UserHandle workProfileUserHandle,
+    public NoAppsAvailableEmptyStateProvider(Context context,
+            ImmutableList<UserHandle> workProfileUserHandles,
             UserHandle personalProfileUserHandle, String metricsCategory,
             UserHandle tabOwnerUserHandleForLaunch) {
         mContext = context;
-        mWorkProfileUserHandle = workProfileUserHandle;
+        mWorkProfileUserHandles = workProfileUserHandles;
         mPersonalProfileUserHandle = personalProfileUserHandle;
         mMetricsCategory = metricsCategory;
         mTabOwnerUserHandleForLaunch = tabOwnerUserHandleForLaunch;
@@ -67,7 +70,7 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
     public EmptyState getEmptyState(ResolverListAdapter resolverListAdapter) {
         UserHandle listUserHandle = resolverListAdapter.getUserHandle();
 
-        if (mWorkProfileUserHandle != null
+        if (!mWorkProfileUserHandles.isEmpty()
                 && (mTabOwnerUserHandleForLaunch.equals(listUserHandle)
                 || !hasAppsInOtherProfile(resolverListAdapter))) {
 
@@ -88,7 +91,7 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
                     title, mMetricsCategory,
                     /* isPersonalProfile= */ listUserHandle == mPersonalProfileUserHandle
             );
-        } else if (mWorkProfileUserHandle == null) {
+        } else if (mWorkProfileUserHandles.isEmpty()) {
             // Return default empty state without tracking
             return new DefaultEmptyState();
         }
@@ -97,7 +100,7 @@ public class NoAppsAvailableEmptyStateProvider implements EmptyStateProvider {
     }
 
     private boolean hasAppsInOtherProfile(ResolverListAdapter adapter) {
-        if (mWorkProfileUserHandle == null) {
+        if (mWorkProfileUserHandles.isEmpty()) {
             return false;
         }
         List<ResolvedComponentInfo> resolversForIntent =
