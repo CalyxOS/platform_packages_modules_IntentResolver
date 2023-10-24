@@ -30,25 +30,27 @@ import com.android.intentresolver.AbstractMultiProfilePagerAdapter.EmptyState;
 import com.android.intentresolver.AbstractMultiProfilePagerAdapter.EmptyStateProvider;
 import com.android.intentresolver.AbstractMultiProfilePagerAdapter.OnSwitchOnWorkSelectedListener;
 
+import com.google.common.collect.ImmutableList;
+
 /**
  * Chooser/ResolverActivity empty state provider that returns empty state which is shown when
  * work profile is paused and we need to show a button to enable it.
  */
 public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
 
-    private final UserHandle mWorkProfileUserHandle;
+    private final ImmutableList<UserHandle> mWorkProfileUserHandles;
     private final WorkProfileAvailabilityManager mWorkProfileAvailability;
     private final String mMetricsCategory;
     private final OnSwitchOnWorkSelectedListener mOnSwitchOnWorkSelectedListener;
     private final Context mContext;
 
     public WorkProfilePausedEmptyStateProvider(@NonNull Context context,
-            @Nullable UserHandle workProfileUserHandle,
+            @NonNull ImmutableList<UserHandle> workProfileUserHandles,
             @NonNull WorkProfileAvailabilityManager workProfileAvailability,
             @Nullable OnSwitchOnWorkSelectedListener onSwitchOnWorkSelectedListener,
             @NonNull String metricsCategory) {
         mContext = context;
-        mWorkProfileUserHandle = workProfileUserHandle;
+        mWorkProfileUserHandles = workProfileUserHandles;
         mWorkProfileAvailability = workProfileAvailability;
         mMetricsCategory = metricsCategory;
         mOnSwitchOnWorkSelectedListener = onSwitchOnWorkSelectedListener;
@@ -57,8 +59,9 @@ public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
     @Nullable
     @Override
     public EmptyState getEmptyState(ResolverListAdapter resolverListAdapter) {
-        if (!resolverListAdapter.getUserHandle().equals(mWorkProfileUserHandle)
-                || !mWorkProfileAvailability.isQuietModeEnabled()
+        final UserHandle listUser = resolverListAdapter.getUserHandle();
+        if (!mWorkProfileUserHandles.contains(listUser)
+                || !mWorkProfileAvailability.isQuietModeEnabled(listUser)
                 || resolverListAdapter.getCount() == 0) {
             return null;
         }
@@ -72,7 +75,7 @@ public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
             if (mOnSwitchOnWorkSelectedListener != null) {
                 mOnSwitchOnWorkSelectedListener.onSwitchOnWorkSelected();
             }
-            mWorkProfileAvailability.requestQuietModeEnabled(false);
+            mWorkProfileAvailability.requestQuietModeEnabled(listUser, false);
         }, mMetricsCategory);
     }
 

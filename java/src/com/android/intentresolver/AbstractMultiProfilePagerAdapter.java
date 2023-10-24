@@ -36,11 +36,13 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.android.internal.annotations.VisibleForTesting;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Skeletal {@link PagerAdapter} implementation of a work or personal profile page for
@@ -51,6 +53,7 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
     private static final String TAG = "AbstractMultiProfilePagerAdapter";
     static final int PROFILE_PERSONAL = 0;
     static final int PROFILE_WORK = 1;
+    // Any Profile value greater than PROFILE_WORK is an additional work profile.
 
     @IntDef({PROFILE_PERSONAL, PROFILE_WORK})
     @interface Profile {}
@@ -61,22 +64,23 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
 
     private Set<Integer> mLoadedPages;
     private final EmptyStateProvider mEmptyStateProvider;
-    private final UserHandle mWorkProfileUserHandle;
-    private final UserHandle mCloneProfileUserHandle;
-    private final Supplier<Boolean> mWorkProfileQuietModeChecker;  // True when work is quiet.
+    private final ImmutableList<UserHandle> mWorkProfileUserHandles;
+    private final ImmutableList<UserHandle> mCloneProfileUserHandles;
+    // True when work is quiet.
+    private final Function<UserHandle, Boolean> mWorkProfileQuietModeChecker;
 
     AbstractMultiProfilePagerAdapter(
             Context context,
             int currentPage,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle) {
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles) {
         mContext = Objects.requireNonNull(context);
         mCurrentPage = currentPage;
         mLoadedPages = new HashSet<>();
-        mWorkProfileUserHandle = workProfileUserHandle;
-        mCloneProfileUserHandle = cloneProfileUserHandle;
+        mWorkProfileUserHandles = Objects.requireNonNull(workProfileUserHandles);
+        mCloneProfileUserHandles = Objects.requireNonNull(cloneProfileUserHandles);
         mEmptyStateProvider = emptyStateProvider;
         mWorkProfileQuietModeChecker = workProfileQuietModeChecker;
     }
@@ -163,8 +167,9 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
         return null;
     }
 
-    public UserHandle getCloneUserHandle() {
-        return mCloneProfileUserHandle;
+    @NonNull
+    public ImmutableList<UserHandle> getCloneUserHandles() {
+        return mCloneProfileUserHandles;
     }
 
     /**
@@ -238,8 +243,6 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
 
     public abstract ResolverListAdapter getPersonalListAdapter();
 
-    public abstract @Nullable ResolverListAdapter getWorkListAdapter();
-
     abstract Object getCurrentRootAdapter();
 
     abstract ViewGroup getActiveAdapterView();
@@ -276,6 +279,10 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
         if (userHandle.equals(getPersonalListAdapter().getUserHandle())) {
             return PROFILE_PERSONAL;
         } else {
+            final int workProfilePageIndex = mWorkProfileUserHandles.indexOf(userHandle);
+            if (workProfilePageIndex != -1) {
+                return PROFILE_WORK + workProfilePageIndex;
+            }
             return PROFILE_WORK;
         }
     }
@@ -438,8 +445,8 @@ public abstract class AbstractMultiProfilePagerAdapter extends PagerAdapter {
     boolean shouldShowEmptyStateScreen(ResolverListAdapter listAdapter) {
         int count = listAdapter.getUnfilteredCount();
         return (count == 0 && listAdapter.getPlaceholderCount() == 0)
-                || (listAdapter.getUserHandle().equals(mWorkProfileUserHandle)
-                    && mWorkProfileQuietModeChecker.get());
+                || (mWorkProfileUserHandles.contains(listAdapter.getUserHandle())
+                    && mWorkProfileQuietModeChecker.apply(listAdapter.getUserHandle()));
     }
 
     protected static class ProfileDescriptor {
