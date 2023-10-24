@@ -32,6 +32,8 @@ import com.android.intentresolver.contentpreview.ImageLoader;
 import com.android.intentresolver.flags.FeatureFlagRepository;
 import com.android.intentresolver.shortcuts.ShortcutLoader;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -67,8 +69,8 @@ public class ChooserActivityOverrideData {
     public ChooserActivityLogger chooserActivityLogger;
     public int alternateProfileSetting;
     public Resources resources;
-    public UserHandle workProfileUserHandle;
-    public UserHandle cloneProfileUserHandle;
+    public ImmutableList<UserHandle> workProfileUserHandles;
+    public ImmutableList<UserHandle> cloneProfileUserHandles;
     public UserHandle tabOwnerUserHandleForLaunch;
     public boolean hasCrossProfileIntents;
     public boolean isQuietModeEnabled;
@@ -90,34 +92,35 @@ public class ChooserActivityOverrideData {
         chooserActivityLogger = mock(ChooserActivityLogger.class);
         alternateProfileSetting = 0;
         resources = null;
-        workProfileUserHandle = null;
-        cloneProfileUserHandle = null;
+        workProfileUserHandles = ImmutableList.of();
+        cloneProfileUserHandles = ImmutableList.of();
         tabOwnerUserHandleForLaunch = null;
         hasCrossProfileIntents = true;
         isQuietModeEnabled = false;
         myUserId = null;
         packageManager = null;
-        mWorkProfileAvailability = new WorkProfileAvailabilityManager(null, null, null) {
+        mWorkProfileAvailability = new WorkProfileAvailabilityManager(null,
+                workProfileUserHandles, null) {
             @Override
-            public boolean isQuietModeEnabled() {
+            public boolean isQuietModeEnabled(UserHandle userHandle) {
                 return isQuietModeEnabled;
             }
 
             @Override
-            public boolean isWorkProfileUserUnlocked() {
+            public boolean isWorkProfileUserUnlocked(UserHandle userHandle) {
                 return true;
             }
 
             @Override
-            public void requestQuietModeEnabled(boolean enabled) {
+            public void requestQuietModeEnabled(UserHandle userHandle, boolean enabled) {
                 isQuietModeEnabled = enabled;
             }
 
             @Override
-            public void markWorkProfileEnabledBroadcastReceived() {}
+            public void markWorkProfileEnabledBroadcastReceived(UserHandle userHandle) {}
 
             @Override
-            public boolean isWaitingToEnableWorkProfile() {
+            public boolean isWaitingToEnableWorkProfile(UserHandle userHandle) {
                 return false;
             }
         };

@@ -112,6 +112,8 @@ import com.android.internal.config.sysui.SystemUiDeviceConfigFlags;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.systemui.flags.BooleanFlag;
 
+import com.google.common.collect.ImmutableList;
+
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -162,6 +164,7 @@ public class UnbundledChooserActivityTest {
 
     private static final UserHandle PERSONAL_USER_HANDLE = InstrumentationRegistry
             .getInstrumentation().getTargetContext().getUser();
+    private static final UserHandle WORK_USER_HANDLE = UserHandle.of(10);
     private static final Function<PackageManager, PackageManager> DEFAULT_PM = pm -> pm;
     private static final Function<PackageManager, PackageManager> NO_APP_PREDICTION_SERVICE_PM =
             pm -> {
@@ -1693,10 +1696,12 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         waitForIdle();
 
-        for (int i = 0; i < activity.getWorkListAdapter().getCount(); i++) {
+        final ChooserListAdapter listAdapter =
+                activity.getListAdapterForUserHandle(WORK_USER_HANDLE);
+        for (int i = 0; i < listAdapter.getCount(); i++) {
             assertThat(
                     "Chooser target should not show up in opposite profile",
-                    activity.getWorkListAdapter().getItem(i).getDisplayLabel(),
+                    listAdapter.getItem(i).getDisplayLabel(),
                     not(callerTargetLabel));
         }
     }
@@ -1937,7 +1942,8 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         assertThat(activity.getCurrentUserHandle().getIdentifier(), is(10));
         assertThat(activity.getPersonalListAdapter().getCount(), is(personalProfileTargets));
-        assertThat(activity.getWorkListAdapter().getCount(), is(workProfileTargets));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCount(),
+                is(workProfileTargets));
     }
 
     @Test
@@ -1958,7 +1964,8 @@ public class UnbundledChooserActivityTest {
         onView(withText(R.string.resolver_work_tab)).perform(click());
         waitForIdle();
 
-        assertThat(activity.getWorkListAdapter().getCount(), is(workProfileTargets));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCount(),
+                is(workProfileTargets));
     }
 
     @Test @Ignore
@@ -2423,7 +2430,8 @@ public class UnbundledChooserActivityTest {
         waitForIdle();
 
         assertThat(activity.getPersonalListAdapter().getCallerTargetCount(), is(2));
-        assertThat(activity.getWorkListAdapter().getCallerTargetCount(), is(0));
+        assertThat(activity.getListAdapterForUserHandle(WORK_USER_HANDLE).getCallerTargetCount(),
+                is(0));
     }
 
     @Test
@@ -2561,7 +2569,7 @@ public class UnbundledChooserActivityTest {
                 createResolvedComponentsWithCloneProfileForTest(
                         3,
                         PERSONAL_USER_HANDLE,
-                        ChooserActivityOverrideData.getInstance().cloneProfileUserHandle);
+                        ChooserActivityOverrideData.getInstance().cloneProfileUserHandles.get(0));
         setupResolverControllers(resolvedComponentInfos);
         Intent sendIntent = createSendTextIntent();
 
@@ -2851,11 +2859,13 @@ public class UnbundledChooserActivityTest {
     }
 
     private void markWorkProfileUserAvailable() {
-        ChooserActivityOverrideData.getInstance().workProfileUserHandle = UserHandle.of(10);
+        ChooserActivityOverrideData.getInstance().workProfileUserHandles =
+                ImmutableList.of(WORK_USER_HANDLE);
     }
 
     private void markCloneProfileUserAvailable() {
-        ChooserActivityOverrideData.getInstance().cloneProfileUserHandle = UserHandle.of(11);
+        ChooserActivityOverrideData.getInstance().cloneProfileUserHandles =
+                ImmutableList.of(UserHandle.of(11));
     }
 
     private void setupResolverControllers(
