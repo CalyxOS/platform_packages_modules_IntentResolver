@@ -82,10 +82,10 @@ class GenericMultiProfilePagerAdapter<
             AdapterBinder<PageViewT, SinglePageAdapterT> adapterBinder,
             ImmutableList<SinglePageAdapterT> adapters,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
             @Profile int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             Supplier<ViewGroup> pageViewInflater,
             Supplier<Optional<Integer>> containerBottomPaddingOverrideSupplier) {
         super(
@@ -93,8 +93,8 @@ class GenericMultiProfilePagerAdapter<
                 /* currentPage= */ defaultProfile,
                 emptyStateProvider,
                 workProfileQuietModeChecker,
-                workProfileUserHandle,
-                cloneProfileUserHandle);
+                workProfileUserHandles,
+                cloneProfileUserHandles);
 
         mListAdapterExtractor = listAdapterExtractor;
         mAdapterBinder = adapterBinder;
@@ -149,11 +149,15 @@ class GenericMultiProfilePagerAdapter<
     @Nullable
     protected ListAdapterT getListAdapterForUserHandle(UserHandle userHandle) {
         if (getPersonalListAdapter().getUserHandle().equals(userHandle)
-                || userHandle.equals(getCloneUserHandle())) {
+                || getCloneUserHandles().contains(userHandle)) {
             return getPersonalListAdapter();
-        } else if (getWorkListAdapter() != null
-                && getWorkListAdapter().getUserHandle().equals(userHandle)) {
-            return getWorkListAdapter();
+        } else {
+            for (int i = PROFILE_WORK; i < getCount(); i++) {
+                final ListAdapterT listAdapter = mListAdapterExtractor.apply(getAdapterForIndex(i));
+                if (listAdapter.getUserHandle().equals(userHandle)) {
+                    return listAdapter;
+                }
+            }
         }
         return null;
     }
@@ -170,20 +174,13 @@ class GenericMultiProfilePagerAdapter<
         if (getCount() < 2) {
             return null;
         }
-        return mListAdapterExtractor.apply(getAdapterForIndex(1 - getCurrentPage()));
+        final int alternatePage = getCurrentPage() == 0 ? 1 : 0;
+        return mListAdapterExtractor.apply(getAdapterForIndex(alternatePage));
     }
 
     @Override
     public ListAdapterT getPersonalListAdapter() {
         return mListAdapterExtractor.apply(getAdapterForIndex(PROFILE_PERSONAL));
-    }
-
-    @Override
-    public ListAdapterT getWorkListAdapter() {
-        if (!hasAdapterForIndex(PROFILE_WORK)) {
-            return null;
-        }
-        return mListAdapterExtractor.apply(getAdapterForIndex(PROFILE_WORK));
     }
 
     @Override
@@ -201,7 +198,7 @@ class GenericMultiProfilePagerAdapter<
         if (getCount() < 2) {
             return null;
         }
-        return getListViewForIndex(1 - getCurrentPage());
+        return getListViewForIndex((getCurrentPage() == 0) ? 1 : 0);
     }
 
     @Override

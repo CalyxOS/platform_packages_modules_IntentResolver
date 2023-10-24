@@ -24,27 +24,37 @@ import android.os.AsyncTask;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
+import android.util.ArraySet;
 
 import androidx.annotation.VisibleForTesting;
+
+import com.google.common.collect.ImmutableList;
+
+import java.util.Set;
+import java.util.function.Consumer;
 
 /** Monitor for runtime conditions that may disable work profile display. */
 public class WorkProfileAvailabilityManager {
     private final UserManager mUserManager;
-    private final UserHandle mWorkProfileUserHandle;
-    private final Runnable mOnWorkProfileStateUpdated;
+    private final ImmutableList<UserHandle> mWorkProfileUserHandles;
+    private final Consumer<UserHandle> mOnWorkProfileStateUpdated;
 
     private BroadcastReceiver mWorkProfileStateReceiver;
 
-    private boolean mIsWaitingToEnableWorkProfile;
-    private boolean mWorkProfileHasBeenEnabled;
+    private Set<UserHandle> mIsWaitingToEnableWorkProfile = new ArraySet<>();
+    private Set<UserHandle> mWorkProfileHasBeenEnabled = new ArraySet<>();
 
     public WorkProfileAvailabilityManager(
             UserManager userManager,
-            UserHandle workProfileUserHandle,
-            Runnable onWorkProfileStateUpdated) {
+            ImmutableList<UserHandle> workProfileUserHandles,
+            Consumer<UserHandle> onWorkProfileStateUpdated) {
         mUserManager = userManager;
-        mWorkProfileUserHandle = workProfileUserHandle;
-        mWorkProfileHasBeenEnabled = isWorkProfileEnabled();
+        mWorkProfileUserHandles = workProfileUserHandles;
+        for (UserHandle workProfileUserHandle : workProfileUserHandles) {
+            if (isWorkProfileEnabled(workProfileUserHandle)) {
+                mWorkProfileHasBeenEnabled.add(workProfileUserHandle);
+            }
+        }
         mOnWorkProfileStateUpdated = onWorkProfileStateUpdated;
     }
 
@@ -91,25 +101,48 @@ public class WorkProfileAvailabilityManager {
         mWorkProfileStateReceiver = null;
     }
 
-    public boolean isQuietModeEnabled() {
-        return mUserManager.isQuietModeEnabled(mWorkProfileUserHandle);
+    public boolean isQuietModeEnabled(UserHandle workProfileUserHandle) {
+        return mUserManager.isQuietModeEnabled(workProfileUserHandle);
+    }
+
+    /** Return true if all work profiles are in quiet mode. */
+    private boolean isQuietModeEnabled() {
+        if (mWorkProfileUserHandles.size() == 0) {
+            return false;
+        }
+        for (UserHandle workProfileUserHandle : mWorkProfileUserHandles) {
+            if (!isQuietModeEnabled(workProfileUserHandle)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // TODO: why do clients only care about the result of `isQuietModeEnabled()`, even though
     // internally (in `isWorkProfileEnabled()`) we also check this 'unlocked' condition?
     @VisibleForTesting
-    public boolean isWorkProfileUserUnlocked() {
-        return mUserManager.isUserUnlocked(mWorkProfileUserHandle);
+    public boolean isWorkProfileUserUnlocked(UserHandle workProfileUserHandle) {
+        return mUserManager.isUserUnlocked(workProfileUserHandle);
+    }
+
+    public void requestQuietModeEnabled(UserHandle workProfileUserHandle, boolean enabled) {
+        AsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
+                mUserManager.requestQuietModeEnabled(enabled, workProfileUserHandle);
+        });
+        mIsWaitingToEnableWorkProfile.add(workProfileUserHandle);
     }
 
     /**
      * Request that quiet mode be enabled (or disabled) for the work profile.
      * TODO: this is only used to disable quiet mode; should that be hard-coded?
      */
-    public void requestQuietModeEnabled(boolean enabled) {
-        AsyncTask.THREAD_POOL_EXECUTOR.execute(
-                () -> mUserManager.requestQuietModeEnabled(enabled, mWorkProfileUserHandle));
-        mIsWaitingToEnableWorkProfile = true;
+    private void requestQuietModeEnabled(boolean enabled) {
+        AsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
+            for (UserHandle workProfileUserHandle : mWorkProfileUserHandles) {
+                mUserManager.requestQuietModeEnabled(enabled, workProfileUserHandle);
+                mIsWaitingToEnableWorkProfile.add(workProfileUserHandle);
+             }
+        });
     }
 
     /**
@@ -117,18 +150,17 @@ public class WorkProfileAvailabilityManager {
      * TODO: this seems strangely low-level to include as part of the public API. Maybe some
      * responsibilities need to be pulled over from the client?
      */
-    public void markWorkProfileEnabledBroadcastReceived() {
-        mIsWaitingToEnableWorkProfile = false;
+    public void markWorkProfileEnabledBroadcastReceived(UserHandle workProfileUserHandle) {
+        mIsWaitingToEnableWorkProfile.remove(workProfileUserHandle);
     }
 
-    public boolean isWaitingToEnableWorkProfile() {
-        return mIsWaitingToEnableWorkProfile;
+    public boolean isWaitingToEnableWorkProfile(UserHandle workProfileUserHandle) {
+        return mIsWaitingToEnableWorkProfile.contains(workProfileUserHandle);
     }
 
-    private boolean isWorkProfileEnabled() {
-        return (mWorkProfileUserHandle != null)
-                && !isQuietModeEnabled()
-                && isWorkProfileUserUnlocked();
+    private boolean isWorkProfileEnabled(UserHandle workProfileUserHandle) {
+        return !isQuietModeEnabled(workProfileUserHandle)
+                && isWorkProfileUserUnlocked(workProfileUserHandle);
     }
 
     private BroadcastReceiver createWorkProfileStateReceiver() {
@@ -142,24 +174,33 @@ public class WorkProfileAvailabilityManager {
                     return;
                 }
 
-                if (intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1)
-                        != mWorkProfileUserHandle.getIdentifier()) {
+                final int intentUserId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1);
+                boolean workProfileIsEnabled = false;
+                UserHandle workProfileUserHandle = null;
+                for (UserHandle userHandle : mWorkProfileUserHandles) {
+                    final int workProfileUserId = userHandle.getIdentifier();
+                    if (intentUserId == workProfileUserId) {
+                        workProfileUserHandle = userHandle;
+                        break;
+                    }
+                }
+                if (workProfileUserHandle == null) {
                     return;
                 }
 
-                if (isWorkProfileEnabled()) {
-                    if (mWorkProfileHasBeenEnabled) {
+                if (isWorkProfileEnabled(workProfileUserHandle)) {
+                    if (mWorkProfileHasBeenEnabled.contains(workProfileUserHandle)) {
                         return;
                     }
-                    mWorkProfileHasBeenEnabled = true;
-                    mIsWaitingToEnableWorkProfile = false;
+                    mWorkProfileHasBeenEnabled.add(workProfileUserHandle);
+                    mIsWaitingToEnableWorkProfile.remove(workProfileUserHandle);
                 } else {
                     // Must be an UNAVAILABLE broadcast, so we watch for the next availability.
                     // TODO: confirm the above reasoning (& handling of "UNAVAILABLE" in general).
-                    mWorkProfileHasBeenEnabled = false;
+                    mWorkProfileHasBeenEnabled.remove(workProfileUserHandle);
                 }
 
-                mOnWorkProfileStateUpdated.run();
+                mOnWorkProfileStateUpdated.accept(workProfileUserHandle);
             }
         };
     }

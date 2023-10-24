@@ -103,6 +103,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.content.PackageMonitor;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 
+import com.google.common.collect.ImmutableList;
+
 import java.io.File;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -117,6 +119,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * The Chooser Activity handles intent resolution specifically for sharing intents -
@@ -368,8 +371,7 @@ public class ChooserActivity extends ResolverActivity implements
             Tracer.INSTANCE.endLaunchToShortcutTrace();
         }
 
-        UserHandle workUserHandle = getWorkProfileUserHandle();
-        if (workUserHandle != null) {
+        for (UserHandle workUserHandle : getWorkProfileUserHandles()) {
             createProfileRecord(workUserHandle, targetIntentFilter, factory);
         }
     }
@@ -434,7 +436,7 @@ public class ChooserActivity extends ResolverActivity implements
             boolean filterLastUsed,
             TargetDataLoader targetDataLoader) {
         if (shouldShowTabs()) {
-            mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForTwoProfiles(
+            mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForProfiles(
                     initialIntents, rList, filterLastUsed, targetDataLoader);
         } else {
             mChooserMultiProfilePagerAdapter = createChooserMultiProfilePagerAdapterForOneProfile(
@@ -494,14 +496,14 @@ public class ChooserActivity extends ResolverActivity implements
         return new ChooserMultiProfilePagerAdapter(
                 /* context */ this,
                 adapter,
-                createEmptyStateProvider(/* workProfileUserHandle= */ null),
-                /* workProfileQuietModeChecker= */ () -> false,
-                /* workProfileUserHandle= */ null,
-                getCloneProfileUserHandle(),
+                createEmptyStateProvider(/* workProfileUserHandles= */ ImmutableList.of()),
+                /* workProfileQuietModeChecker= */ (userHandle) -> false,
+                /* workProfileUserHandles= */ ImmutableList.of(),
+                getCloneProfileUserHandles(),
                 mMaxTargetsPerRow);
     }
 
-    private ChooserMultiProfilePagerAdapter createChooserMultiProfilePagerAdapterForTwoProfiles(
+    private ChooserMultiProfilePagerAdapter createChooserMultiProfilePagerAdapterForProfiles(
             Intent[] initialIntents,
             List<ResolveInfo> rList,
             boolean filterLastUsed,
@@ -515,23 +517,25 @@ public class ChooserActivity extends ResolverActivity implements
                 filterLastUsed,
                 /* userHandle */ getPersonalProfileUserHandle(),
                 targetDataLoader);
-        ChooserGridAdapter workAdapter = createChooserGridAdapter(
-                /* context */ this,
-                /* payloadIntents */ mIntents,
-                selectedProfile == PROFILE_WORK ? initialIntents : null,
-                rList,
-                filterLastUsed,
-                /* userHandle */ getWorkProfileUserHandle(),
-                targetDataLoader);
+        List<ChooserGridAdapter> workAdapters = getWorkProfileUserHandles().stream()
+                .map(workProfileUserHandle -> createChooserGridAdapter(
+                        /* context */ this,
+                        /* payloadIntents */ mIntents,
+                        selectedProfile != PROFILE_PERSONAL ? initialIntents : null,
+                        rList,
+                        filterLastUsed,
+                        /* userHandle */ workProfileUserHandle,
+                        targetDataLoader)
+                ).collect(Collectors.toList());
         return new ChooserMultiProfilePagerAdapter(
                 /* context */ this,
                 personalAdapter,
-                workAdapter,
-                createEmptyStateProvider(/* workProfileUserHandle= */ getWorkProfileUserHandle()),
-                () -> mWorkProfileAvailability.isQuietModeEnabled(),
+                workAdapters,
+                createEmptyStateProvider(/* workProfileUserHandles= */ getWorkProfileUserHandles()),
+                (userHandle) -> mWorkProfileAvailability.isQuietModeEnabled(userHandle),
                 selectedProfile,
-                getWorkProfileUserHandle(),
-                getCloneProfileUserHandle(),
+                getWorkProfileUserHandles(),
+                getCloneProfileUserHandles(),
                 mMaxTargetsPerRow);
     }
 
@@ -789,9 +793,9 @@ public class ChooserActivity extends ResolverActivity implements
     private void addCallerChooserTargets() {
         if (!mChooserRequest.getCallerChooserTargets().isEmpty()) {
             // Send the caller's chooser targets only to the default profile.
-            UserHandle defaultUser = (findSelectedProfile() == PROFILE_WORK)
-                    ? getAnnotatedUserHandles().workProfileUserHandle
-                    : getAnnotatedUserHandles().personalProfileUserHandle;
+            UserHandle defaultUser = (findSelectedProfile() == PROFILE_PERSONAL)
+                    ? getAnnotatedUserHandles().personalProfileUserHandle
+                    : getAnnotatedUserHandles().userHandleSharesheetLaunchedAs;
             if (mChooserMultiProfilePagerAdapter.getCurrentUserHandle() == defaultUser) {
                 mChooserMultiProfilePagerAdapter.getActiveListAdapter().addServiceResults(
                         /* origTarget */ null,
@@ -1097,7 +1101,8 @@ public class ChooserActivity extends ResolverActivity implements
         ProfileRecord record = getProfileRecord(userHandle);
         // We cannot use APS service when clone profile is present as APS service cannot sort
         // cross profile targets as of now.
-        return (record == null || getCloneProfileUserHandle() != null) ? null : record.appPredictor;
+        return (record == null || !getCloneProfileUserHandles().isEmpty())
+                ? null : record.appPredictor;
     }
 
     /**
@@ -1243,7 +1248,7 @@ public class ChooserActivity extends ResolverActivity implements
             TargetDataLoader targetDataLoader) {
         UserHandle initialIntentsUserSpace = isLaunchedAsCloneProfile()
                 && userHandle.equals(getPersonalProfileUserHandle())
-                ? getCloneProfileUserHandle() : userHandle;
+                ? getAnnotatedUserHandles().userHandleSharesheetLaunchedAs : userHandle;
         return new ChooserListAdapter(
                 context,
                 payloadIntents,
@@ -1263,13 +1268,12 @@ public class ChooserActivity extends ResolverActivity implements
     }
 
     @Override
-    protected void onWorkProfileStatusUpdated() {
-        UserHandle workUser = getWorkProfileUserHandle();
-        ProfileRecord record = workUser == null ? null : getProfileRecord(workUser);
+    protected void onWorkProfileStatusUpdated(UserHandle userHandle) {
+        ProfileRecord record = getProfileRecord(userHandle);
         if (record != null && record.shortcutLoader != null) {
             record.shortcutLoader.reset();
         }
-        super.onWorkProfileStatusUpdated();
+        super.onWorkProfileStatusUpdated(userHandle);
     }
 
     @Override
@@ -1479,12 +1483,13 @@ public class ChooserActivity extends ResolverActivity implements
     }
 
     /**
-     * Returns {@link #PROFILE_WORK}, if the given user handle matches work user handle.
+     * Returns {@link #PROFILE_WORK} or greater, if the given user handle matches work user handle.
      * Returns {@link #PROFILE_PERSONAL}, otherwise.
      **/
     private int getProfileForUser(UserHandle currentUserHandle) {
-        if (currentUserHandle.equals(getWorkProfileUserHandle())) {
-            return PROFILE_WORK;
+        final int workProfileIndex = getWorkProfileUserHandles().indexOf(currentUserHandle);
+        if (workProfileIndex != -1) {
+            return PROFILE_WORK + workProfileIndex;
         }
         // We return personal profile, as it is the default when there is no work profile, personal
         // profile represents rootUser, clonedUser & secondaryUser, covering all use cases.
