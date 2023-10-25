@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f2680a68_9f85d68c",
+        "filename": "java/src/com/android/intentresolver/WorkProfileAvailabilityManager.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2023-10-25T17:15:49Z",
+      "side": 1,
+      "message": "Not used. Remove and move the comments to the new method above.",
+      "range": {
+        "startLine": 126,
+        "startChar": 1,
+        "endLine": 133,
+        "endChar": 5
+      },
+      "revId": "dab7a85e77c7c86aa4484b3af14b713d66974196",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    }
+  ]
+}
