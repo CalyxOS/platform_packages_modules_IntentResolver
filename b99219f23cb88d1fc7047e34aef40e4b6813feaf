@@ -123,6 +123,23 @@
       "parentUuid": "8a988cab_04d0179d",
       "revId": "b99219f23cb88d1fc7047e34aef40e4b6813feaf",
       "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "defa5965_f8aa66a4",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 9
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-07-30T18:49:28Z",
+      "side": 1,
+      "message": "Note: This change does not allow a work profile to share with another work profile. Content would need to be shared with the personal profile and then back out to the other work profile. In theory this should be possible if we wanted to allow it, but we\u0027d want to make sure it all makes sense in conjunction with \"Allow cross-profile sharing\", which is still required to be toggled on for this to work.",
+      "revId": "b99219f23cb88d1fc7047e34aef40e4b6813feaf",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
     }
   ]
 }
