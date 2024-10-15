@@ -27,6 +27,8 @@ import com.android.intentresolver.ResolverListAdapter
 import com.android.intentresolver.emptystate.EmptyStateProvider
 import com.android.intentresolver.profiles.MultiProfilePagerAdapter.PROFILE_PERSONAL
 import com.android.intentresolver.profiles.MultiProfilePagerAdapter.PROFILE_WORK
+import com.android.intentresolver.shared.model.Profile
+import com.android.intentresolver.shared.model.User
 import com.google.common.collect.ImmutableList
 import com.google.common.truth.Truth.assertThat
 import java.util.Optional
@@ -37,7 +39,24 @@ import org.mockito.kotlin.mock
 
 class MultiProfilePagerAdapterTest {
     private val PERSONAL_USER_HANDLE = UserHandle.of(10)
-    private val WORK_USER_HANDLE = UserHandle.of(20)
+    private val WORK_USER_HANDLE1 = UserHandle.of(20)
+    private val WORK_USER_HANDLE2 = UserHandle.of(21)
+    private val WORK_USER_HANDLES = ImmutableList.Builder<UserHandle>()
+        .add(WORK_USER_HANDLE1, WORK_USER_HANDLE2).build()
+    private val EMPTY_USER_HANDLES = ImmutableList.Builder<UserHandle>().build()
+    private val personalProfile = Profile(
+        Profile.Type.PERSONAL,
+        User(PERSONAL_USER_HANDLE.identifier, User.Role.PERSONAL)
+    )
+    private val workProfile1 = Profile(
+        Profile.Type.WORK,
+        User(WORK_USER_HANDLE1.identifier, User.Role.WORK)
+    )
+    private val workProfile2 = Profile(
+        Profile.Type.WORK,
+        User(WORK_USER_HANDLE2.identifier, User.Role.WORK)
+    )
+    private val workProfiles = listOf(workProfile1, workProfile2)
 
     private val context = InstrumentationRegistry.getInstrumentation().getContext()
     private val inflater = Supplier {
@@ -66,9 +85,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false },
-                PROFILE_PERSONAL,
-                null,
-                null,
+                personalProfile,
+                EMPTY_USER_HANDLES,
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
@@ -89,7 +108,7 @@ class MultiProfilePagerAdapterTest {
         val personalListAdapter =
             mock<ResolverListAdapter> { on { userHandle } doReturn PERSONAL_USER_HANDLE }
         val workListAdapter =
-            mock<ResolverListAdapter> { on { userHandle } doReturn WORK_USER_HANDLE }
+            mock<ResolverListAdapter> { on { userHandle } doReturn WORK_USER_HANDLE1 }
         val pagerAdapter =
             MultiProfilePagerAdapter(
                 { listAdapter: ResolverListAdapter -> listAdapter },
@@ -108,9 +127,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false },
-                PROFILE_PERSONAL,
-                WORK_USER_HANDLE, // TODO: why does this test pass even if this is null?
-                null,
+                personalProfile,
+                WORK_USER_HANDLES, // TODO: does this test still pass even if this is empty? why?
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
@@ -136,7 +155,7 @@ class MultiProfilePagerAdapterTest {
         val personalListAdapter =
             mock<ResolverListAdapter> { on { userHandle } doReturn PERSONAL_USER_HANDLE }
         val workListAdapter =
-            mock<ResolverListAdapter> { on { userHandle } doReturn WORK_USER_HANDLE }
+            mock<ResolverListAdapter> { on { userHandle } doReturn WORK_USER_HANDLE1 }
         val pagerAdapter =
             MultiProfilePagerAdapter(
                 { listAdapter: ResolverListAdapter -> listAdapter },
@@ -155,15 +174,15 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false },
-                PROFILE_WORK, // <-- This test specifically requests we start on work profile.
-                WORK_USER_HANDLE, // TODO: why does this test pass even if this is null?
-                null,
+                workProfile1, // <-- This test specifically requests we start on work profile.
+                WORK_USER_HANDLES, // TODO: does this test still pass even if this is empty? why?
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
         assertThat(pagerAdapter.count).isEqualTo(2)
         assertThat(pagerAdapter.currentPage).isEqualTo(PROFILE_WORK)
-        assertThat(pagerAdapter.currentUserHandle).isEqualTo(WORK_USER_HANDLE)
+        assertThat(pagerAdapter.currentUserHandle).isEqualTo(WORK_USER_HANDLE1)
         assertThat(pagerAdapter.getPageAdapterForIndex(0)).isSameInstanceAs(personalListAdapter)
         assertThat(pagerAdapter.getPageAdapterForIndex(1)).isSameInstanceAs(workListAdapter)
         assertThat(pagerAdapter.activeListAdapter).isSameInstanceAs(workListAdapter)
@@ -197,9 +216,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false },
-                PROFILE_PERSONAL,
-                null,
-                null,
+                personalProfile,
+                EMPTY_USER_HANDLES,
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
@@ -236,9 +255,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false },
-                PROFILE_PERSONAL,
-                null,
-                null,
+                personalProfile,
+                EMPTY_USER_HANDLES,
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.of(42) }
             )
@@ -266,7 +285,7 @@ class MultiProfilePagerAdapterTest {
             }
         val workListAdapter =
             mock<ResolverListAdapter> {
-                on { userHandle } doReturn WORK_USER_HANDLE
+                on { userHandle } doReturn WORK_USER_HANDLE1
                 on { unfilteredCount } doReturn 1
             }
         val pagerAdapter =
@@ -287,9 +306,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { true }, // <-- Work mode is quiet.
-                PROFILE_WORK,
-                WORK_USER_HANDLE,
-                null,
+                workProfile1,
+                WORK_USER_HANDLES,
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
@@ -309,7 +328,7 @@ class MultiProfilePagerAdapterTest {
             }
         val workListAdapter =
             mock<ResolverListAdapter> {
-                on { userHandle } doReturn WORK_USER_HANDLE
+                on { userHandle } doReturn WORK_USER_HANDLE1
                 on { unfilteredCount } doReturn 1
             }
         val pagerAdapter =
@@ -330,9 +349,9 @@ class MultiProfilePagerAdapterTest {
                 ),
                 object : EmptyStateProvider {},
                 { false }, // <-- Work mode is not quiet.
-                PROFILE_WORK,
-                WORK_USER_HANDLE,
-                null,
+                workProfile1,
+                WORK_USER_HANDLES,
+                EMPTY_USER_HANDLES,
                 inflater,
                 { Optional.empty() }
             )
