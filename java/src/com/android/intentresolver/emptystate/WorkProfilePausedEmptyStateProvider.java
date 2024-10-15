@@ -34,6 +34,8 @@ import com.android.intentresolver.ResolverListAdapter;
 import com.android.intentresolver.profiles.OnSwitchOnWorkSelectedListener;
 import com.android.intentresolver.shared.model.Profile;
 
+import java.util.List;
+
 /**
  * Chooser/ResolverActivity empty state provider that returns empty state which is shown when
  * work profile is paused and we need to show a button to enable it.
@@ -65,16 +67,20 @@ public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
         if (!mProfileHelper.getWorkProfilePresent()) {
             return null;
         }
-        Profile workProfile = requireNonNull(mProfileHelper.getWorkProfile());
+        List<Profile> workProfiles = requireNonNull(mProfileHelper.getWorkProfiles());
 
         // Policy: only show the "Work profile paused" state when:
         // * provided list adapter is from the work profile
         // * the list adapter is not empty
         // * work profile quiet mode is _enabled_ (unavailable)
 
-        if (!userHandle.equals(workProfile.getPrimary().getHandle())
+        final Profile thisWorkProfile = workProfiles.stream()
+                .filter(workProfile -> userHandle.equals(workProfile.getPrimary().getHandle()))
+                .findFirst()
+                .orElse(null);
+        if (thisWorkProfile == null
                 || resolverListAdapter.getCount() == 0
-                || mProfileAvailability.isAvailable(workProfile)) {
+                || mProfileAvailability.isAvailable(userHandle)) {
             return null;
         }
 
@@ -87,7 +93,7 @@ public class WorkProfilePausedEmptyStateProvider implements EmptyStateProvider {
             if (mOnSwitchOnWorkSelectedListener != null) {
                 mOnSwitchOnWorkSelectedListener.onSwitchOnWorkSelected();
             }
-            mProfileAvailability.requestQuietModeState(workProfile, false);
+            mProfileAvailability.requestQuietModeState(thisWorkProfile, false);
         }, mMetricsCategory);
     }
 
