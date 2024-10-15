@@ -75,9 +75,10 @@ public class MultiProfilePagerAdapter<
     private final ImmutableList<ProfileDescriptor<PageViewT, SinglePageAdapterT>> mItems;
 
     private final EmptyStateProvider mEmptyStateProvider;
-    private final UserHandle mWorkProfileUserHandle;
-    private final UserHandle mCloneProfileUserHandle;
-    private final Supplier<Boolean> mWorkProfileQuietModeChecker;  // True when work is quiet.
+    private final ImmutableList<UserHandle> mWorkProfileUserHandles;
+    private final ImmutableList<UserHandle> mCloneProfileUserHandles;
+    // True when work is quiet.
+    private final Function<UserHandle, Boolean> mWorkProfileQuietModeChecker;
 
     private final Set<Integer> mLoadedPages;
     private int mCurrentPage;
@@ -88,15 +89,15 @@ public class MultiProfilePagerAdapter<
             AdapterBinder<PageViewT, SinglePageAdapterT> adapterBinder,
             ImmutableList<TabConfig<SinglePageAdapterT>> tabs,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
             @ProfileType int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             Supplier<ViewGroup> pageViewInflater,
             Supplier<Optional<Integer>> containerBottomPaddingOverrideSupplier) {
         mLoadedPages = new HashSet<>();
-        mWorkProfileUserHandle = workProfileUserHandle;
-        mCloneProfileUserHandle = cloneProfileUserHandle;
+        mWorkProfileUserHandles = workProfileUserHandles;
+        mCloneProfileUserHandles = cloneProfileUserHandles;
         mEmptyStateProvider = emptyStateProvider;
         mWorkProfileQuietModeChecker = workProfileQuietModeChecker;
 
@@ -175,7 +176,7 @@ public class MultiProfilePagerAdapter<
     }
 
     private @ProfileType int getProfileForUserHandle(UserHandle userHandle) {
-        if (userHandle.equals(getCloneUserHandle())) {
+        if (getCloneUserHandles().contains(userHandle)) {
             // TODO: can we push this special case elsewhere -- e.g., when we check against each
             // list adapter's user handle in the loop below, could we instead ask the list adapter
             // whether it "represents" the queried user handle, and have the personal list adapter
@@ -381,8 +382,8 @@ public class MultiProfilePagerAdapter<
         return null;
     }
 
-    public UserHandle getCloneUserHandle() {
-        return mCloneProfileUserHandle;
+    public ImmutableList<UserHandle> getCloneUserHandles() {
+        return mCloneProfileUserHandles;
     }
 
     /**
@@ -512,7 +513,7 @@ public class MultiProfilePagerAdapter<
     public boolean onHandlePackagesChanged(
             ListAdapterT listAdapter, boolean waitingToEnableWorkProfile) {
         if (listAdapter == getActiveListAdapter()) {
-            if (listAdapter.getUserHandle().equals(mWorkProfileUserHandle)
+            if (mWorkProfileUserHandles.contains(listAdapter.getUserHandle())
                     && waitingToEnableWorkProfile) {
                 // We have just turned on the work profile and entered the passcode to start it,
                 // now we are waiting to receive the ACTION_USER_UNLOCKED broadcast. There is no
@@ -698,8 +699,8 @@ public class MultiProfilePagerAdapter<
     public boolean shouldShowEmptyStateScreen(ListAdapterT listAdapter) {
         int count = listAdapter.getUnfilteredCount();
         return (count == 0 && listAdapter.getPlaceholderCount() == 0)
-                || (listAdapter.getUserHandle().equals(mWorkProfileUserHandle)
-                    && mWorkProfileQuietModeChecker.get());
+                || (mWorkProfileUserHandles.contains(listAdapter.getUserHandle())
+                    && mWorkProfileQuietModeChecker.apply(listAdapter.getUserHandle()));
     }
 
 }

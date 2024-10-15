@@ -35,6 +35,7 @@ import com.android.intentresolver.measurements.Tracer;
 import com.google.common.collect.ImmutableList;
 
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -51,10 +52,10 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
             Context context,
             ImmutableList<TabConfig<ChooserGridAdapter>> tabs,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
             @ProfileType int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             int maxTargetsPerRow) {
         this(
                 context,
@@ -63,8 +64,8 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier(context));
     }
 
@@ -73,10 +74,10 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
             ChooserProfileAdapterBinder adapterBinder,
             ImmutableList<TabConfig<ChooserGridAdapter>> tabs,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
             @ProfileType int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            ImmutableList<UserHandle> workProfileUserHandles,
+            ImmutableList<UserHandle> cloneProfileUserHandles,
             BottomPaddingOverrideSupplier bottomPaddingOverrideSupplier) {
         super(
                 gridAdapter -> gridAdapter.getListAdapter(),
@@ -85,8 +86,8 @@ public class ChooserMultiProfilePagerAdapter extends MultiProfilePagerAdapter<
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 () -> makeProfileView(context),
                 bottomPaddingOverrideSupplier);
         mAdapterBinder = adapterBinder;

@@ -23,6 +23,7 @@ import com.android.intentresolver.domain.interactor.UserInteractor
 import com.android.intentresolver.inject.IntentResolverFlags
 import com.android.intentresolver.shared.model.Profile
 import com.android.intentresolver.shared.model.User
+import com.google.common.collect.ImmutableList
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -48,27 +49,33 @@ constructor(
 
     // Map UserHandle back to a user within launchedByProfile
     private val launchedByUser: User =
-        when (launchedByHandle) {
-            launchedAsProfile.primary.handle -> launchedAsProfile.primary
-            launchedAsProfile.clone?.handle -> requireNotNull(launchedAsProfile.clone)
-            else -> error("launchedByUser must be a member of launchedByProfile")
+        if (launchedByHandle == launchedAsProfile.primary.handle) {
+            launchedAsProfile.primary
+        } else {
+            launchedAsProfile.clones.firstOrNull { it.handle == launchedByHandle }
+                ?: error("launchedByUser must be a member of launchedByProfile")
         }
     val launchedAsProfileType: Profile.Type = launchedAsProfile.type
 
     val personalProfile = profiles.single { it.type == Profile.Type.PERSONAL }
-    val workProfile = profiles.singleOrNull { it.type == Profile.Type.WORK }
-    val privateProfile = profiles.singleOrNull { it.type == Profile.Type.PRIVATE }
+    val workProfiles: ImmutableList<Profile> =
+        ImmutableList.copyOf(profiles.filter { it.type == Profile.Type.WORK })
+    val privateProfiles: ImmutableList<Profile> =
+        ImmutableList.copyOf(profiles.filter { it.type == Profile.Type.PRIVATE })
 
     val personalHandle = personalProfile.primary.handle
-    val workHandle = workProfile?.primary?.handle
-    val privateHandle = privateProfile?.primary?.handle
-    val cloneHandle = personalProfile.clone?.handle
+    val workHandles: ImmutableList<UserHandle> =
+        ImmutableList.copyOf(workProfiles.map { it.primary.handle })
+    val privateHandles: ImmutableList<UserHandle> =
+        ImmutableList.copyOf(privateProfiles.map { it.primary.handle })
+    val cloneHandles: ImmutableList<UserHandle> =
+        ImmutableList.copyOf(personalProfile.clones.map { it.handle })
 
-    val isLaunchedAsCloneProfile = launchedByUser == launchedAsProfile.clone
+    val isLaunchedAsCloneProfile = launchedAsProfile.clones.contains(launchedByUser)
 
-    val cloneUserPresent = personalProfile.clone != null
-    val workProfilePresent = workProfile != null
-    val privateProfilePresent = privateProfile != null
+    val cloneUserPresent = personalProfile.clones.isNotEmpty()
+    val workProfilePresent = workProfiles.isNotEmpty()
+    val privateProfilePresent = privateProfiles.isNotEmpty()
 
     // Name retained for ease of review, to be renamed later
     val tabOwnerUserHandleForLaunch =
@@ -81,7 +88,8 @@ constructor(
         }
 
     fun findProfile(handle: UserHandle): Profile? {
-        return profiles.firstOrNull { it.primary.handle == handle || it.clone?.handle == handle }
+        return profiles.firstOrNull { it.primary.handle == handle ||
+                it.clones.stream().anyMatch { clone -> clone.handle == handle } }
     }
 
     fun findProfileType(handle: UserHandle): Profile.Type? = findProfile(handle)?.type
@@ -89,7 +97,7 @@ constructor(
     // Name retained for ease of review, to be renamed later
     fun getQueryIntentsHandle(handle: UserHandle): UserHandle? {
         return if (isLaunchedAsCloneProfile && handle == personalHandle) {
-            cloneHandle
+            launchedByUser.handle
         } else {
             handle
         }

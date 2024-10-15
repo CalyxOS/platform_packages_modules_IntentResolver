@@ -31,6 +31,7 @@ import com.android.intentresolver.emptystate.EmptyStateProvider;
 import com.google.common.collect.ImmutableList;
 
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -43,18 +44,19 @@ public class ResolverMultiProfilePagerAdapter extends
     public ResolverMultiProfilePagerAdapter(Context context,
                                             ImmutableList<TabConfig<ResolverListAdapter>> tabs,
                                             EmptyStateProvider emptyStateProvider,
-                                            Supplier<Boolean> workProfileQuietModeChecker,
+                                            Function<UserHandle, Boolean>
+                                                    workProfileQuietModeChecker,
                                             @ProfileType int defaultProfile,
-                                            UserHandle workProfileUserHandle,
-                                            UserHandle cloneProfileUserHandle) {
+                                            ImmutableList<UserHandle> workProfileUserHandles,
+                                            ImmutableList<UserHandle> cloneProfileUserHandles) {
         this(
                 context,
                 tabs,
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier());
     }
 
@@ -62,10 +64,10 @@ public class ResolverMultiProfilePagerAdapter extends
             Context context,
             ImmutableList<TabConfig<ResolverListAdapter>> tabs,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
             @ProfileType int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            ImmutableList<UserHandle> workProfileUserHandle,
+            ImmutableList<UserHandle> cloneProfileUserHandle,
             BottomPaddingOverrideSupplier bottomPaddingOverrideSupplier) {
         super(
                         listAdapter -> listAdapter,

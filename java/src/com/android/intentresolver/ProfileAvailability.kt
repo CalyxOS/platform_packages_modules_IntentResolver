@@ -16,6 +16,7 @@
 
 package com.android.intentresolver
 
+import android.os.UserHandle
 import androidx.annotation.MainThread
 import com.android.intentresolver.annotation.JavaInterop
 import com.android.intentresolver.domain.interactor.UserInteractor
@@ -50,6 +51,28 @@ class ProfileAvailability(
     fun isAvailable(profile: Profile?): Boolean {
         return runBlocking(background) {
             userInteractor.availability.map { it[profile] == true }.first()
+        }
+    }
+
+    @MainThread
+    fun isAvailable(userHandle: UserHandle?): Boolean {
+        return runBlocking(background) {
+            val profiles = userInteractor.profiles.first()
+            val profile = profiles.firstOrNull { it.primary.handle == userHandle }
+            if (profile == null) {
+                false
+            } else {
+                userInteractor.availability.map { it[profile] == true }.first()
+            }
+        }
+    }
+
+    @MainThread
+    fun isAnyAvailable(profiles: List<Profile>): Boolean {
+        return runBlocking(background) {
+            userInteractor.availability.map {
+                profiles.stream().anyMatch { profile -> it[profile] == true }
+            }.first()
         }
     }
 
