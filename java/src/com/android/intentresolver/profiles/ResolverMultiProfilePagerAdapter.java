@@ -27,10 +27,12 @@ import androidx.viewpager.widget.PagerAdapter;
 import com.android.intentresolver.R;
 import com.android.intentresolver.ResolverListAdapter;
 import com.android.intentresolver.emptystate.EmptyStateProvider;
+import com.android.intentresolver.shared.model.Profile;
 
 import com.google.common.collect.ImmutableList;
 
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -43,18 +45,19 @@ public class ResolverMultiProfilePagerAdapter extends
     public ResolverMultiProfilePagerAdapter(Context context,
                                             ImmutableList<TabConfig<ResolverListAdapter>> tabs,
                                             EmptyStateProvider emptyStateProvider,
-                                            Supplier<Boolean> workProfileQuietModeChecker,
-                                            @ProfileType int defaultProfile,
-                                            UserHandle workProfileUserHandle,
-                                            UserHandle cloneProfileUserHandle) {
+                                            Function<UserHandle, Boolean>
+                                                    workProfileQuietModeChecker,
+                                            Profile defaultProfile,
+                                            ImmutableList<UserHandle> workProfileUserHandles,
+                                            ImmutableList<UserHandle> cloneProfileUserHandles) {
         this(
                 context,
                 tabs,
                 emptyStateProvider,
                 workProfileQuietModeChecker,
                 defaultProfile,
-                workProfileUserHandle,
-                cloneProfileUserHandle,
+                workProfileUserHandles,
+                cloneProfileUserHandles,
                 new BottomPaddingOverrideSupplier());
     }
 
@@ -62,10 +65,10 @@ public class ResolverMultiProfilePagerAdapter extends
             Context context,
             ImmutableList<TabConfig<ResolverListAdapter>> tabs,
             EmptyStateProvider emptyStateProvider,
-            Supplier<Boolean> workProfileQuietModeChecker,
-            @ProfileType int defaultProfile,
-            UserHandle workProfileUserHandle,
-            UserHandle cloneProfileUserHandle,
+            Function<UserHandle, Boolean> workProfileQuietModeChecker,
+            Profile defaultProfile,
+            ImmutableList<UserHandle> workProfileUserHandle,
+            ImmutableList<UserHandle> cloneProfileUserHandle,
             BottomPaddingOverrideSupplier bottomPaddingOverrideSupplier) {
         super(
                         listAdapter -> listAdapter,

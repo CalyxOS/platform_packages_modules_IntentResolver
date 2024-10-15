@@ -43,7 +43,8 @@ constructor(
                 when (user.role) {
                     // PERSONAL includes CLONE
                     Role.PERSONAL -> {
-                        Profile(Type.PERSONAL, user, users.firstOrNull { it.role == Role.CLONE })
+                        Profile(Type.PERSONAL, user, users.stream()
+                            .filter { it.role == Role.CLONE }.toList())
                     }
                     Role.CLONE -> {
                         /* ignore, included above */
@@ -62,7 +63,8 @@ constructor(
             // matching the application user id. By definition there must always be exactly
             // one matching profile for the current user.
             profiles.single {
-                it.primary.id == launchedAs.identifier || it.clone?.id == launchedAs.identifier
+                it.primary.id == launchedAs.identifier || it.clones.stream()
+                    .anyMatch { user -> launchedAs == user.handle }
             }
         }
     /**
