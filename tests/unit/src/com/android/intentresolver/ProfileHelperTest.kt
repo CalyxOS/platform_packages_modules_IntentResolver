@@ -30,56 +30,68 @@ import org.junit.Test
 class ProfileHelperTest {
 
     private val personalUser = User(0, User.Role.PERSONAL)
-    private val cloneUser = User(10, User.Role.CLONE)
+    private val cloneUser1 = User(10, User.Role.CLONE)
+    private val cloneUser2 = User(20, User.Role.CLONE)
+    private val cloneUsers = listOf(cloneUser1, cloneUser2)
 
     private val personalProfile = Profile(Profile.Type.PERSONAL, personalUser)
-    private val personalWithCloneProfile = Profile(Profile.Type.PERSONAL, personalUser, cloneUser)
+    private val personalWithCloneProfile = Profile(Profile.Type.PERSONAL, personalUser, cloneUsers)
 
-    private val workUser = User(11, User.Role.WORK)
-    private val workProfile = Profile(Profile.Type.WORK, workUser)
+    private val workUser1 = User(11, User.Role.WORK)
+    private val workUser2 = User(21, User.Role.WORK)
+    private val workProfile1 = Profile(Profile.Type.WORK, workUser1)
+    private val workProfile2 = Profile(Profile.Type.WORK, workUser2)
+    private val workUsers = listOf(workUser1, workUser2)
+    private val workProfiles = listOf(workProfile1, workProfile2)
 
-    private val privateUser = User(12, User.Role.PRIVATE)
-    private val privateProfile = Profile(Profile.Type.PRIVATE, privateUser)
+    private val privateUser1 = User(12, User.Role.PRIVATE)
+    private val privateUser2 = User(22, User.Role.PRIVATE)
+    private val privateProfile1 = Profile(Profile.Type.PRIVATE, privateUser1)
+    private val privateProfile2 = Profile(Profile.Type.PRIVATE, privateUser2)
+    private val privateUsers = listOf(privateUser1, privateUser2)
+    private val privateProfiles = listOf(privateProfile1, privateProfile2)
 
     private fun assertProfiles(
         helper: ProfileHelper,
         personalProfile: Profile,
-        workProfile: Profile? = null,
-        privateProfile: Profile? = null,
+        workProfiles: List<Profile> = listOf(),
+        privateProfiles: List<Profile> = listOf(),
     ) {
         assertThat(helper.personalProfile).isEqualTo(personalProfile)
         assertThat(helper.personalHandle).isEqualTo(personalProfile.primary.handle)
 
-        personalProfile.clone?.also {
+        if (personalProfile.clones.isNotEmpty()) {
             assertThat(helper.cloneUserPresent).isTrue()
-            assertThat(helper.cloneHandle).isEqualTo(it.handle)
+            assertThat(helper.cloneHandles)
+                .containsExactlyElementsIn(
+                    personalProfile.clones.stream().map { user -> user.handle }.toList()
+                )
+        } else {
+            assertThat(helper.cloneUserPresent).isFalse()
+            assertThat(helper.cloneHandles).isEmpty()
         }
-            ?: {
-                assertThat(helper.cloneUserPresent).isFalse()
-                assertThat(helper.cloneHandle).isNull()
-            }
 
-        workProfile?.also {
+        if (workProfiles.isNotEmpty()) {
             assertThat(helper.workProfilePresent).isTrue()
-            assertThat(helper.workProfile).isEqualTo(it)
-            assertThat(helper.workHandle).isEqualTo(it.primary.handle)
+            assertThat(helper.workProfiles).containsExactlyElementsIn(workProfiles)
+            assertThat(helper.workHandles).containsExactlyElementsIn(
+                workProfiles.stream().map { profile -> profile.primary.handle }.toList()
+            )
+        } else {
+            assertThat(helper.workProfilePresent).isFalse()
+            assertThat(helper.workHandles).isEmpty()
         }
-            ?: {
-                assertThat(helper.workProfilePresent).isFalse()
-                assertThat(helper.workProfile).isNull()
-                assertThat(helper.workHandle).isNull()
-            }
 
-        privateProfile?.also {
+        if (privateProfiles.isNotEmpty()) {
             assertThat(helper.privateProfilePresent).isTrue()
-            assertThat(helper.privateProfile).isEqualTo(it)
-            assertThat(helper.privateHandle).isEqualTo(it.primary.handle)
+            assertThat(helper.privateProfiles).containsExactlyElementsIn(privateProfiles)
+            assertThat(helper.privateHandles).containsExactlyElementsIn(
+                privateProfiles.stream().map { profile -> profile.primary.handle }.toList()
+            )
+        } else {
+            assertThat(helper.privateProfilePresent).isFalse()
+            assertThat(helper.privateHandles).isEmpty()
         }
-            ?: {
-                assertThat(helper.privateProfilePresent).isFalse()
-                assertThat(helper.privateProfile).isNull()
-                assertThat(helper.privateHandle).isNull()
-            }
     }
 
     @Test
@@ -100,7 +112,7 @@ class ProfileHelperTest {
 
     @Test
     fun launchedByPersonal_withClone() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, cloneUser))
+        val repository = FakeUserRepository(listOf(personalUser) + cloneUsers)
         val interactor = UserInteractor(repository, launchedAs = personalUser.handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
@@ -115,8 +127,8 @@ class ProfileHelperTest {
 
     @Test
     fun launchedByClone() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, cloneUser))
-        val interactor = UserInteractor(repository, launchedAs = cloneUser.handle)
+        val repository = FakeUserRepository(listOf(personalUser) + cloneUsers)
+        val interactor = UserInteractor(repository, launchedAs = cloneUsers[0].handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
 
@@ -124,81 +136,101 @@ class ProfileHelperTest {
 
         assertThat(helper.isLaunchedAsCloneProfile).isTrue()
         assertThat(helper.launchedAsProfileType).isEqualTo(Profile.Type.PERSONAL)
-        assertThat(helper.getQueryIntentsHandle(personalWithCloneProfile.primary.handle))
-            .isEqualTo(personalWithCloneProfile.clone?.handle)
+        assertThat(personalWithCloneProfile.clones.stream().map { it.handle }.toList())
+            .contains(helper.getQueryIntentsHandle(personalWithCloneProfile.primary.handle))
         assertThat(helper.tabOwnerUserHandleForLaunch)
             .isEqualTo(personalWithCloneProfile.primary.handle)
     }
 
     @Test
     fun launchedByPersonal_withWork() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, workUser))
+        val repository = FakeUserRepository(listOf(personalUser) + workUsers)
         val interactor = UserInteractor(repository, launchedAs = personalUser.handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
 
-        assertProfiles(helper, personalProfile = personalProfile, workProfile = workProfile)
+        assertProfiles(helper,
+            personalProfile = personalProfile,
+            workProfiles = workProfiles
+        )
 
         assertThat(helper.launchedAsProfileType).isEqualTo(Profile.Type.PERSONAL)
         assertThat(helper.isLaunchedAsCloneProfile).isFalse()
         assertThat(helper.getQueryIntentsHandle(personalUser.handle))
             .isEqualTo(personalProfile.primary.handle)
-        assertThat(helper.getQueryIntentsHandle(workUser.handle))
-            .isEqualTo(workProfile.primary.handle)
+        assertThat(workUsers.stream().map { helper.getQueryIntentsHandle(it.handle) }.toList())
+            .containsExactlyElementsIn(workProfiles.stream().map { it.primary.handle }.toList())
+            .inOrder()
         assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(personalProfile.primary.handle)
     }
 
     @Test
     fun launchedByWork() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, workUser))
-        val interactor = UserInteractor(repository, launchedAs = workUser.handle)
+        val repository = FakeUserRepository(listOf(personalUser) + workUsers)
+        val interactor = UserInteractor(repository, launchedAs = workUser1.handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
 
-        assertProfiles(helper, personalProfile = personalProfile, workProfile = workProfile)
+        assertProfiles(helper, personalProfile = personalProfile, workProfiles = workProfiles)
 
         assertThat(helper.isLaunchedAsCloneProfile).isFalse()
         assertThat(helper.launchedAsProfileType).isEqualTo(Profile.Type.WORK)
         assertThat(helper.getQueryIntentsHandle(personalProfile.primary.handle))
             .isEqualTo(personalProfile.primary.handle)
-        assertThat(helper.getQueryIntentsHandle(workProfile.primary.handle))
-            .isEqualTo(workProfile.primary.handle)
-        assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(workProfile.primary.handle)
+        val workProfileQueryIntentsHandles =
+            workProfiles.stream().map { helper.getQueryIntentsHandle(it.primary.handle) }.toList()
+        val workProfileHandles = workProfiles.stream().map { it.primary.handle }.toList()
+        assertThat(workProfileQueryIntentsHandles)
+            .containsExactlyElementsIn(workProfileHandles)
+            .inOrder()
+        assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(workProfile1.primary.handle)
     }
 
     @Test
     fun launchedByPersonal_withPrivate() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, privateUser))
+        val repository = FakeUserRepository(listOf(personalUser) + privateUsers)
         val interactor = UserInteractor(repository, launchedAs = personalUser.handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
 
-        assertProfiles(helper, personalProfile = personalProfile, privateProfile = privateProfile)
+        assertProfiles(helper, personalProfile = personalProfile, privateProfiles = privateProfiles)
 
         assertThat(helper.isLaunchedAsCloneProfile).isFalse()
         assertThat(helper.launchedAsProfileType).isEqualTo(Profile.Type.PERSONAL)
         assertThat(helper.getQueryIntentsHandle(personalProfile.primary.handle))
             .isEqualTo(personalProfile.primary.handle)
-        assertThat(helper.getQueryIntentsHandle(privateProfile.primary.handle))
-            .isEqualTo(privateProfile.primary.handle)
+        val privateProfileQueryIntentsHandles =
+            privateProfiles.stream().map {
+                helper.getQueryIntentsHandle(it.primary.handle)
+            }.toList()
+        val privateProfileHandles = privateProfiles.stream().map { it.primary.handle }.toList()
+        assertThat(privateProfileQueryIntentsHandles)
+            .containsExactlyElementsIn(privateProfileHandles)
+            .inOrder()
         assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(personalProfile.primary.handle)
     }
 
     @Test
     fun launchedByPrivate() = runTest {
-        val repository = FakeUserRepository(listOf(personalUser, privateUser))
-        val interactor = UserInteractor(repository, launchedAs = privateUser.handle)
+        val repository = FakeUserRepository(listOf(personalUser) + privateUsers)
+        val interactor = UserInteractor(repository, launchedAs = privateUser1.handle)
 
         val helper = ProfileHelper(interactor = interactor, background = Dispatchers.Unconfined)
 
-        assertProfiles(helper, personalProfile = personalProfile, privateProfile = privateProfile)
+        assertProfiles(helper, personalProfile = personalProfile, privateProfiles = privateProfiles)
 
         assertThat(helper.isLaunchedAsCloneProfile).isFalse()
         assertThat(helper.launchedAsProfileType).isEqualTo(Profile.Type.PRIVATE)
         assertThat(helper.getQueryIntentsHandle(personalProfile.primary.handle))
             .isEqualTo(personalProfile.primary.handle)
-        assertThat(helper.getQueryIntentsHandle(privateProfile.primary.handle))
-            .isEqualTo(privateProfile.primary.handle)
-        assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(privateProfile.primary.handle)
+        val privateProfileQueryIntentsHandles =
+            privateProfiles.stream().map {
+                helper.getQueryIntentsHandle(it.primary.handle)
+            }.toList()
+        val privateProfileHandles = privateProfiles.stream().map { it.primary.handle }.toList()
+        assertThat(privateProfileQueryIntentsHandles)
+            .containsExactlyElementsIn(privateProfileHandles)
+            .inOrder()
+        assertThat(helper.tabOwnerUserHandleForLaunch).isEqualTo(privateProfile1.primary.handle)
     }
 }
