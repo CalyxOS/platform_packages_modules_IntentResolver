@@ -29,19 +29,19 @@ data class Profile(
     val type: Type,
     val primary: User,
     /**
-     * An optional [User] of which contains second instances of some applications installed for the
+     * List of [User]s of which contains additional instances of some applications installed for the
      * personal user. This value may only be supplied when creating the PERSONAL profile.
      */
-    val clone: User? = null
+    val clones: List<User> = listOf()
 ) {
 
     init {
-        clone?.apply {
+        clones.forEach { it.apply {
             require(primary.role == User.Role.PERSONAL) {
                 "clone is not supported for profile=${this@Profile.type} / primary=$primary"
             }
             require(role == User.Role.CLONE) { "clone is not a clone user ($this)" }
-        }
+        } }
     }
 
     enum class Type {

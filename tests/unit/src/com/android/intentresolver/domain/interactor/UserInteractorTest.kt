@@ -37,37 +37,48 @@ class UserInteractorTest {
     private val baseId = Random.nextInt(1000, 2000)
 
     private val personalUser = User(id = baseId, role = Role.PERSONAL)
-    private val cloneUser = User(id = baseId + 1, role = Role.CLONE)
-    private val workUser = User(id = baseId + 2, role = Role.WORK)
-    private val privateUser = User(id = baseId + 3, role = Role.PRIVATE)
+    private val cloneUser1 = User(id = baseId + 1, role = Role.CLONE)
+    private val workUser1 = User(id = baseId + 2, role = Role.WORK)
+    private val privateUser1 = User(id = baseId + 3, role = Role.PRIVATE)
+    private val cloneUser2 = User(id = baseId + 4, role = Role.CLONE)
+    private val workUser2 = User(id = baseId + 5, role = Role.WORK)
+    private val privateUser2 = User(id = baseId + 6, role = Role.PRIVATE)
+    private val cloneUsers = listOf(cloneUser1, cloneUser2)
+    private val workUsers = listOf(workUser1, workUser2)
+    private val privateUsers = listOf(privateUser1, privateUser2)
 
-    val personalProfile = Profile(PERSONAL, personalUser)
-    val workProfile = Profile(WORK, workUser)
-    val privateProfile = Profile(PRIVATE, privateUser)
+    private val personalProfile = Profile(PERSONAL, personalUser)
+    private val workProfile1 = Profile(WORK, workUser1)
+    private val privateProfile1 = Profile(PRIVATE, privateUser1)
+    private val workProfile2 = Profile(WORK, workUser2)
+    private val privateProfile2 = Profile(PRIVATE, privateUser2)
+    private val workProfiles = listOf(workProfile1, workProfile2)
+    private val privateProfiles = listOf(privateProfile1, privateProfile2)
 
     @Test
     fun launchedByProfile(): Unit = runTest {
         val profileInteractor =
             UserInteractor(
-                userRepository = FakeUserRepository(listOf(personalUser, cloneUser)),
+                userRepository = FakeUserRepository(listOf(personalUser) + cloneUsers),
                 launchedAs = personalUser.handle
             )
 
         val launchedAsProfile by collectLastValue(profileInteractor.launchedAsProfile)
 
-        assertThat(launchedAsProfile).isEqualTo(Profile(PERSONAL, personalUser, cloneUser))
+        assertThat(launchedAsProfile).isEqualTo(Profile(PERSONAL, personalUser, cloneUsers))
     }
 
     @Test
     fun launchedByProfile_asClone(): Unit = runTest {
         val profileInteractor =
             UserInteractor(
-                userRepository = FakeUserRepository(listOf(personalUser, cloneUser)),
-                launchedAs = cloneUser.handle
+                userRepository = FakeUserRepository(listOf(personalUser) + cloneUsers),
+                launchedAs = cloneUser1.handle
             )
+
         val profiles by collectLastValue(profileInteractor.launchedAsProfile)
 
-        assertThat(profiles).isEqualTo(Profile(PERSONAL, personalUser, cloneUser))
+        assertThat(profiles).isEqualTo(Profile(PERSONAL, personalUser, cloneUsers))
     }
 
     @Test
@@ -92,20 +103,22 @@ class UserInteractorTest {
         val profiles by collectLastValue(profileInteractor.profiles)
         assertThat(profiles).containsExactly(Profile(PERSONAL, personalUser))
 
-        fakeUserRepo.addUser(cloneUser, available = true)
-        assertThat(profiles).containsExactly(Profile(PERSONAL, personalUser, cloneUser))
+        cloneUsers.forEach { cloneUser ->
+            fakeUserRepo.addUser(cloneUser, available = true)
+        }
+        assertThat(profiles).containsExactly(Profile(PERSONAL, personalUser, cloneUsers))
     }
 
     @Test
     fun profiles_withPersonalAndClone(): Unit = runTest {
         val profileInteractor =
             UserInteractor(
-                userRepository = FakeUserRepository(listOf(personalUser, cloneUser)),
+                userRepository = FakeUserRepository(listOf(personalUser) + cloneUsers),
                 launchedAs = personalUser.handle
             )
         val profiles by collectLastValue(profileInteractor.profiles)
 
-        assertThat(profiles).containsExactly(Profile(PERSONAL, personalUser, cloneUser))
+        assertThat(profiles).containsExactly(Profile(PERSONAL, personalUser, cloneUsers))
     }
 
     @Test
@@ -113,16 +126,18 @@ class UserInteractorTest {
         val profileInteractor =
             UserInteractor(
                 userRepository =
-                    FakeUserRepository(listOf(personalUser, cloneUser, workUser, privateUser)),
+                    FakeUserRepository(
+                        listOf(personalUser) + cloneUsers + workUsers + privateUsers
+                    ),
                 launchedAs = personalUser.handle
             )
         val profiles by collectLastValue(profileInteractor.profiles)
 
         assertThat(profiles)
-            .containsExactly(
-                Profile(PERSONAL, personalUser, cloneUser),
-                Profile(WORK, workUser),
-                Profile(PRIVATE, privateUser)
+            .containsExactlyElementsIn(
+                listOf(Profile(PERSONAL, personalUser, cloneUsers))
+                        + workProfiles
+                        + privateProfiles
             )
     }
 
@@ -131,54 +146,59 @@ class UserInteractorTest {
         val profileInteractor =
             UserInteractor(
                 userRepository =
-                    FakeUserRepository(listOf(workUser, cloneUser, privateUser, personalUser)),
+                    FakeUserRepository(workUsers + cloneUsers + privateUsers +
+                            listOf(personalUser)),
                 launchedAs = personalUser.handle
             )
 
         val profiles by collectLastValue(profileInteractor.profiles)
 
         assertThat(profiles)
-            .containsExactly(
-                Profile(WORK, workUser),
-                Profile(PRIVATE, privateUser),
-                Profile(PERSONAL, personalUser, cloneUser),
+            .containsExactlyElementsIn(
+                workProfiles + privateProfiles + Profile(PERSONAL, personalUser, cloneUsers),
             )
     }
 
     @Test
     fun isAvailable_defaultValue() = runTest {
         val userRepo = FakeUserRepository(listOf(personalUser))
-        userRepo.addUser(workUser, false)
+        workUsers.forEach { workUser ->
+            userRepo.addUser(workUser, false)
+        }
 
         val interactor = UserInteractor(userRepository = userRepo, launchedAs = personalUser.handle)
 
         val availability by collectLastValue(interactor.availability)
 
         assertWithMessage("personalAvailable").that(availability?.get(personalProfile)).isTrue()
-        assertWithMessage("workAvailable").that(availability?.get(workProfile)).isFalse()
+        workProfiles.forEach { workProfile ->
+            assertWithMessage("workAvailable").that(availability?.get(workProfile)).isFalse()
+        }
     }
 
     @Test
     fun isAvailable() = runTest {
-        val userRepo = FakeUserRepository(listOf(workUser, personalUser))
+        val userRepo = FakeUserRepository(workUsers + personalUser)
         val interactor = UserInteractor(userRepository = userRepo, launchedAs = personalUser.handle)
 
         val availability by collectLastValue(interactor.availability)
 
-        // Default state is enabled in FakeUserManager
-        assertWithMessage("workAvailable").that(availability?.get(workProfile)).isTrue()
+        workUsers.zip(workProfiles).forEach { (workUser, workProfile) ->
+            // Default state is enabled in FakeUserManager
+            assertWithMessage("workAvailable").that(availability?.get(workProfile)).isTrue()
 
-        // Making user unavailable makes profile unavailable
-        userRepo.requestState(workUser, false)
-        assertWithMessage("workAvailable").that(availability?.get(workProfile)).isFalse()
+            // Making user unavailable makes profile unavailable
+            userRepo.requestState(workUser, false)
+            assertWithMessage("workAvailable").that(availability?.get(workProfile)).isFalse()
 
-        // Making user available makes profile available again
-        userRepo.requestState(workUser, true)
-        assertWithMessage("workAvailable").that(availability?.get(workProfile)).isTrue()
+            // Making user available makes profile available again
+            userRepo.requestState(workUser, true)
+            assertWithMessage("workAvailable").that(availability?.get(workProfile)).isTrue()
 
-        // When a user is removed availability is removed as well.
-        userRepo.removeUser(workUser)
-        assertWithMessage("workAvailable").that(availability?.get(workProfile)).isNull()
+            // When a user is removed availability is removed as well.
+            userRepo.removeUser(workUser)
+            assertWithMessage("workAvailable").that(availability?.get(workProfile)).isNull()
+        }
     }
 
     /**
@@ -187,20 +207,23 @@ class UserInteractorTest {
      */
     @Test
     fun updateState() = runTest {
-        val userRepo = FakeUserRepository(listOf(workUser, personalUser))
+        val userRepo = FakeUserRepository(workUsers + personalUser)
         val userInteractor =
             UserInteractor(userRepository = userRepo, launchedAs = personalUser.handle)
-        val workProfile = Profile(Profile.Type.WORK, workUser)
 
         val availability by collectLastValue(userRepo.availability)
 
-        // Default state is enabled in FakeUserManager
-        assertWithMessage("workAvailable").that(availability?.get(workUser)).isTrue()
+        workUsers.forEach { workUser ->
+            val workProfile = Profile(Profile.Type.WORK, workUser)
 
-        userInteractor.updateState(workProfile, false)
-        assertWithMessage("workAvailable").that(availability?.get(workUser)).isFalse()
+            // Default state is enabled in FakeUserManager
+            assertWithMessage("workAvailable").that(availability?.get(workUser)).isTrue()
 
-        userInteractor.updateState(workProfile, true)
-        assertWithMessage("workAvailable").that(availability?.get(workUser)).isTrue()
+            userInteractor.updateState(workProfile, false)
+            assertWithMessage("workAvailable").that(availability?.get(workUser)).isFalse()
+
+            userInteractor.updateState(workProfile, true)
+            assertWithMessage("workAvailable").that(availability?.get(workUser)).isTrue()
+        }
     }
 }
