@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "607e28a2_cbf1b49f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000000
+      },
+      "writtenOn": "2024-10-17T21:27:49Z",
+      "side": 1,
+      "message": "Picked with conflicts as a placeholder / reminder.",
+      "revId": "8bf5ced921204812c940d8f1da41b68b24770961",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    }
+  ]
+}
