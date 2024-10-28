@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9f40e50e_c8e6396d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-10-28T21:14:38Z",
+      "side": 1,
+      "message": "Tests not fixed, but working.\n\nNot tested with clone profiles or private profiles (private space), neither of which do we currently offer.",
+      "revId": "8f86fdb0cd865548c145d250c10e5f336938fe72",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c7fb4b23_b79e3d2c",
+        "filename": "java/src/com/android/intentresolver/profiles/MultiProfilePagerAdapter.java",
+        "patchSetId": 3
+      },
+      "lineNbr": 233,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-10-28T21:14:38Z",
+      "side": 1,
+      "message": "Drop this debug line.",
+      "revId": "8f86fdb0cd865548c145d250c10e5f336938fe72",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    }
+  ]
+}
