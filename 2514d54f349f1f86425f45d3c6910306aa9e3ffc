@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "14eabeda_6032c320",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 6
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2024-10-30T14:10:33Z",
+      "side": 1,
+      "message": "All tests passing except one in ProfileHelperTest.kt which has been broken in AOSP, `com.android.intentresolver.ProfileHelperTest#launchedByPersonal_withPrivate_privateDisabled`. It\u0027s been broken in the sense that they wrote some Kotlin code in `assertProfiles` that didn\u0027t work the way they thought it would: `something?.also { doThing() } ?: { elseThing() }`. There, `elseThing()` (the whole block) will never get run because it is apparently supposed to be written as `?: run { elseThing() }`.\n\nAfter I had to rewrite the involved area of code, I noticed it was failing, which surfaced this issue, since when written correctly, the test fails. Planning to report that upstream eventually.",
+      "revId": "2514d54f349f1f86425f45d3c6910306aa9e3ffc",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    }
+  ]
+}
