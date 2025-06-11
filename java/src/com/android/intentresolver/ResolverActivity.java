@@ -149,7 +149,6 @@ public class ResolverActivity extends Hilt_ResolverActivity implements
     @Inject public DevicePolicyResources mDevicePolicyResources;
     @Inject public ProfilePagerResources mProfilePagerResources;
     @Inject public IntentForwarding mIntentForwarding;
-    @Inject public FeatureFlags mFeatureFlags;
     @Inject public ActivityModelRepository mActivityModelRepository;
     @Inject public DefaultTargetDataLoader.Factory mTargetDataLoaderFactory;
 
@@ -331,9 +330,7 @@ public class ResolverActivity extends Hilt_ResolverActivity implements
 
         mProfiles =  new ProfileHelper(
                 mUserInteractor,
-                getCoroutineScope(getLifecycle()),
-                mBackgroundDispatcher,
-                mFeatureFlags);
+                mBackgroundDispatcher);
 
         mProfileAvailability = new ProfileAvailability(
                 mUserInteractor,

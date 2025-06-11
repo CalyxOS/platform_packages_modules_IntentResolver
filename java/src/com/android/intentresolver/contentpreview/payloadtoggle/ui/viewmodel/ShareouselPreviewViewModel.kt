@@ -33,4 +33,6 @@ data class ShareouselPreviewViewModel(
     /** Sets whether this preview has been selected by the user. */
     val setSelected: suspend (Boolean) -> Unit,
     val aspectRatio: Float,
+    val cursorPosition: Int,
+    val testTag: String,
 )

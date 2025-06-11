@@ -28,7 +28,9 @@ import android.service.chooser.ChooserAction
 import android.service.chooser.ChooserTarget
 import androidx.annotation.StringRes
 import com.android.intentresolver.ContentTypeHint
+import com.android.intentresolver.IChooserInteractiveSessionCallback
 import com.android.intentresolver.ext.hasAction
+import com.android.systemui.shared.Flags.screenshotContextUrl
 
 const val ANDROID_APP_SCHEME = "android-app"
 
@@ -182,6 +184,7 @@ data class ChooserRequest(
      * Specified by the [Intent.EXTRA_METADATA_TEXT]
      */
     val metadataText: CharSequence? = null,
+    val interactiveSessionCallback: IChooserInteractiveSessionCallback? = null,
 ) {
     val referrerPackage = referrer?.takeIf { it.scheme == ANDROID_APP_SCHEME }?.authority
 
@@ -194,4 +197,7 @@ data class ChooserRequest(
     }
 
     val payloadIntents = listOf(targetIntent) + additionalTargets
+
+    val callerAllowsTextToggle =
+        screenshotContextUrl() && "com.android.systemui".equals(referrerPackage)
 }

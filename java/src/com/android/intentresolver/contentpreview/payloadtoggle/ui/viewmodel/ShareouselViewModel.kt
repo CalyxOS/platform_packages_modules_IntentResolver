@@ -16,14 +16,10 @@
 package com.android.intentresolver.contentpreview.payloadtoggle.ui.viewmodel
 
 import android.util.Size
-import com.android.intentresolver.Flags
 import com.android.intentresolver.Flags.unselectFinalItem
-import com.android.intentresolver.contentpreview.CachingImagePreviewImageLoader
 import com.android.intentresolver.contentpreview.HeadlineGenerator
 import com.android.intentresolver.contentpreview.ImageLoader
 import com.android.intentresolver.contentpreview.MimeTypeClassifier
-import com.android.intentresolver.contentpreview.PreviewImageLoader
-import com.android.intentresolver.contentpreview.payloadtoggle.domain.cursor.PayloadToggle
 import com.android.intentresolver.contentpreview.payloadtoggle.domain.interactor.ChooserRequestInteractor
 import com.android.intentresolver.contentpreview.payloadtoggle.domain.interactor.CustomActionsInteractor
 import com.android.intentresolver.contentpreview.payloadtoggle.domain.interactor.SelectablePreviewsInteractor
@@ -37,7 +33,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.components.ViewModelComponent
-import javax.inject.Provider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -65,7 +60,7 @@ data class ShareouselViewModel(
     /** Creates a [ShareouselPreviewViewModel] for a [PreviewModel] present in [previews]. */
     val preview:
         (
-            key: PreviewModel, previewHeight: Int, index: Int?, scope: CoroutineScope
+            key: PreviewModel, previewHeight: Int, index: Int?, scope: CoroutineScope,
         ) -> ShareouselPreviewViewModel,
 )
 
@@ -74,21 +69,9 @@ data class ShareouselViewModel(
 object ShareouselViewModelModule {
 
     @Provides
-    @PayloadToggle
-    fun imageLoader(
-        cachingImageLoader: Provider<CachingImagePreviewImageLoader>,
-        previewImageLoader: Provider<PreviewImageLoader>
-    ): ImageLoader =
-        if (Flags.previewImageLoader()) {
-            previewImageLoader.get()
-        } else {
-            cachingImageLoader.get()
-        }
-
-    @Provides
     fun create(
         interactor: SelectablePreviewsInteractor,
-        @PayloadToggle imageLoader: ImageLoader,
+        imageLoader: ImageLoader,
         actionsInteractor: CustomActionsInteractor,
         headlineGenerator: HeadlineGenerator,
         selectionInteractor: SelectionInteractor,
@@ -97,12 +80,7 @@ object ShareouselViewModelModule {
         // TODO: remove if possible
         @ViewModelOwned scope: CoroutineScope,
     ): ShareouselViewModel {
-        val keySet =
-            interactor.previews.stateIn(
-                scope,
-                SharingStarted.Eagerly,
-                initialValue = null,
-            )
+        val keySet = interactor.previews.stateIn(scope, SharingStarted.Eagerly, initialValue = null)
         return ShareouselViewModel(
             headline =
                 selectionInteractor.aggregateContentType.zip(selectionInteractor.amountSelected) {
@@ -174,6 +152,9 @@ object ShareouselViewModelModule {
                     isSelected = previewInteractor.isSelected,
                     setSelected = previewInteractor::setSelected,
                     aspectRatio = key.aspectRatio,
+                    // only items with a final key has a known cursor position
+                    cursorPosition = if (key.key.isFinal) key.order else -1,
+                    testTag = key.uri.toString(),
                 )
             },
         )

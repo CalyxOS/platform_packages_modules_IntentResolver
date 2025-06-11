@@ -23,9 +23,12 @@ import static android.view.WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTE
 import static androidx.lifecycle.LifecycleKt.getCoroutineScope;
 
 import static com.android.intentresolver.ChooserActionFactory.EDIT_SOURCE;
-import static com.android.intentresolver.Flags.fixShortcutsFlashing;
+import static com.android.intentresolver.Flags.delayDrawerOffsetCalculation;
+import static com.android.intentresolver.Flags.fixShortcutsFlashingFixed;
+import static com.android.intentresolver.Flags.interactiveSession;
 import static com.android.intentresolver.Flags.keyboardNavigationFix;
 import static com.android.intentresolver.Flags.rebuildAdaptersOnTargetPinning;
+import static com.android.intentresolver.Flags.refineSystemActions;
 import static com.android.intentresolver.Flags.shareouselUpdateExcludeComponentsExtra;
 import static com.android.intentresolver.Flags.unselectFinalItem;
 import static com.android.intentresolver.ext.CreationExtrasExtKt.replaceDefaultArgs;
@@ -57,6 +60,7 @@ import android.content.pm.ShortcutInfo;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Insets;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -140,6 +144,7 @@ import com.android.intentresolver.widget.ActionRow;
 import com.android.intentresolver.widget.ChooserNestedScrollView;
 import com.android.intentresolver.widget.ImagePreviewView;
 import com.android.intentresolver.widget.ResolverDrawerLayout;
+import com.android.intentresolver.widget.ResolverDrawerLayoutExt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.content.PackageMonitor;
 import com.android.internal.logging.MetricsLogger;
@@ -255,7 +260,6 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     @Inject public UserInteractor mUserInteractor;
     @Inject @Background public CoroutineDispatcher mBackgroundDispatcher;
     @Inject public ChooserHelper mChooserHelper;
-    @Inject public FeatureFlags mFeatureFlags;
     @Inject public EventLog mEventLog;
     @Inject @AppPredictionAvailable public boolean mAppPredictionAvailable;
     @Inject @ImageEditor public Optional<ComponentName> mImageEditor;
@@ -436,13 +440,11 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     @Override
     protected final void onRestart() {
         super.onRestart();
-        if (mFeatureFlags.fixPrivateSpaceLockedOnRestart()) {
-            if (mChooserMultiProfilePagerAdapter.hasPageForProfile(Profile.Type.PRIVATE.ordinal())
-                    && !mProfileAvailability.isAnyAvailable(mProfiles.getPrivateProfiles())) {
-                Log.d(TAG, "Exiting due to unavailable profile");
-                finish();
-                return;
-            }
+        if (mChooserMultiProfilePagerAdapter.hasPageForProfile(Profile.Type.PRIVATE.ordinal())
+                && !mProfileAvailability.isAvailable(mProfiles.getPrivateProfile())) {
+            Log.d(TAG, "Exiting due to unavailable profile");
+            finish();
+            return;
         }
 
         if (!mRegistered) {
@@ -471,6 +473,9 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
         if (isFinishing()) {
             mLatencyTracker.onActionCancel(ACTION_LOAD_SHARE_SHEET);
+            if (interactiveSession() && mViewModel != null) {
+                mViewModel.getInteractiveSessionInteractor().endSession();
+            }
         }
 
         mBackgroundThreadPoolExecutor.shutdownNow();
@@ -487,9 +492,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
         mProfiles =  new ProfileHelper(
                 mUserInteractor,
-                getCoroutineScope(getLifecycle()),
-                mBackgroundDispatcher,
-                mFeatureFlags);
+                mBackgroundDispatcher);
 
         mProfileAvailability = new ProfileAvailability(
                 mUserInteractor,
@@ -685,6 +688,11 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         mEnterTransitionAnimationDelegate.postponeTransition();
         mInitialProfile = findSelectedProfile();
         Tracer.INSTANCE.markLaunched();
+
+        if (isInteractiveSession()) {
+            configureInteractiveSessionWindow();
+            updateInteractiveArea();
+        }
     }
 
     private void maybeDisableRecentsScreenshot(
@@ -722,6 +730,45 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
     private void onHasSelections(boolean hasSelections) {
         mChooserMultiProfilePagerAdapter.setTargetsEnabled(hasSelections);
+    }
+
+    private void configureInteractiveSessionWindow() {
+        if (!isInteractiveSession()) {
+            Log.wtf(TAG, "Unexpected user of the method; should be an interactive session");
+            return;
+        }
+        final Window window = getWindow();
+        if (window == null) {
+            return;
+        }
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.addPrivateFlags(WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERLAY);
+    }
+
+    private void updateInteractiveArea() {
+        if (!isInteractiveSession()) {
+            Log.wtf(TAG, "Unexpected user of the method; should be an interactive session");
+            return;
+        }
+        final View contentView = findViewById(android.R.id.content);
+        final ResolverDrawerLayout rdl = mResolverDrawerLayout;
+        if (contentView == null || rdl == null) {
+            return;
+        }
+        final Rect rect = new Rect();
+        contentView.getViewTreeObserver().addOnComputeInternalInsetsListener((info) -> {
+            int oldTop = rect.top;
+            rdl.getBoundsInWindow(rect, true);
+            int left = rect.left;
+            int top = rect.top;
+            ResolverDrawerLayoutExt.getVisibleDrawerRect(rdl, rect);
+            rect.offset(left, top);
+            if (oldTop != rect.top) {
+                mViewModel.getInteractiveSessionInteractor().sendTopDrawerTopOffsetChange(rect.top);
+            }
+            info.setTouchableInsets(ViewTreeObserver.InternalInsetsInfo.TOUCHABLE_INSETS_REGION);
+            info.touchableRegion.set(new Rect(rect));
+        });
     }
 
     private void onAppTargetsLoaded(ResolverListAdapter listAdapter) {
@@ -819,7 +866,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         postRebuildList(
                 mChooserMultiProfilePagerAdapter.rebuildTabs(
                     mProfiles.getWorkProfilePresent() || mProfiles.getPrivateProfilePresent()));
-        if (fixShortcutsFlashing() && oldPagerAdapter != null) {
+        if (fixShortcutsFlashingFixed() && oldPagerAdapter != null) {
             for (int i = 0, count = mChooserMultiProfilePagerAdapter.getCount(); i < count; i++) {
                 ChooserListAdapter listAdapter =
                         mChooserMultiProfilePagerAdapter.getPageAdapterForIndex(i)
@@ -962,6 +1009,9 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
      * @return {@code true} if a resolved target is autolaunched, otherwise {@code false}
      */
     private boolean maybeAutolaunchActivity() {
+        if (isInteractiveSession()) {
+            return false;
+        }
         int numberOfProfiles = mChooserMultiProfilePagerAdapter.getItemCount();
         // TODO(b/280988288): If the ChooserActivity is shown we should consider showing the
         //  correct intent-picker UIs (e.g., mini-resolver) if it was launched without
@@ -1560,8 +1610,12 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         mChooserMultiProfilePagerAdapter.getActiveListAdapter().handlePackagesChanged();
 
         if (mSystemWindowInsets != null) {
-            mResolverDrawerLayout.setPadding(mSystemWindowInsets.left, mSystemWindowInsets.top,
-                    mSystemWindowInsets.right, 0);
+            int topSpacing = isInteractiveSession() ? getInteractiveSessionTopSpacing() : 0;
+            mResolverDrawerLayout.setPadding(
+                    mSystemWindowInsets.left,
+                    mSystemWindowInsets.top + topSpacing,
+                    mSystemWindowInsets.right,
+                    0);
         }
         if (mViewPager.isLayoutRtl()) {
             mChooserMultiProfilePagerAdapter.setupViewPager(mViewPager);
@@ -2067,8 +2121,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 },
                 chooserListAdapter,
                 shouldShowContentPreview(),
-                mMaxTargetsPerRow,
-                mFeatureFlags);
+                mMaxTargetsPerRow);
     }
 
     @VisibleForTesting
@@ -2163,7 +2216,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
     private ChooserContentPreviewUi.ActionFactory decorateActionFactoryWithRefinement(
             ChooserContentPreviewUi.ActionFactory originalFactory) {
-        if (!mFeatureFlags.refineSystemActions()) {
+        if (!refineSystemActions()) {
             return originalFactory;
         }
 
@@ -2296,6 +2349,9 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 || recyclerView.computeVerticalScrollOffset() != 0) {
             return;
         }
+        if (delayDrawerOffsetCalculation() && !gridAdapter.getListAdapter().areAppTargetsReady()) {
+            return;
+        }
 
         final int availableWidth = right - left - v.getPaddingLeft() - v.getPaddingRight();
         final int maxChooserWidth = getResources().getDimensionPixelSize(R.dimen.chooser_width);
@@ -2307,47 +2363,31 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
                 || recyclerView.getAdapter() == null
                 || availableWidth != mCurrAvailableWidth;
 
-        boolean insetsChanged = !Objects.equals(mLastAppliedInsets, mSystemWindowInsets);
+        mCurrAvailableWidth = availableWidth;
+        if (isLayoutUpdated) {
+            // It is very important we call setAdapter from here. Otherwise in some cases
+            // the resolver list doesn't get populated, such as b/150922090, b/150918223
+            // and b/150936654
+            recyclerView.setAdapter(gridAdapter);
+            ((GridLayoutManager) recyclerView.getLayoutManager()).setSpanCount(
+                    mMaxTargetsPerRow);
 
-        if (isLayoutUpdated
-                || insetsChanged
-                || mLastNumberOfChildren != recyclerView.getChildCount()
-                || mFeatureFlags.fixMissingDrawerOffsetCalculation()) {
-            mCurrAvailableWidth = availableWidth;
-            if (isLayoutUpdated) {
-                // It is very important we call setAdapter from here. Otherwise in some cases
-                // the resolver list doesn't get populated, such as b/150922090, b/150918223
-                // and b/150936654
-                recyclerView.setAdapter(gridAdapter);
-                ((GridLayoutManager) recyclerView.getLayoutManager()).setSpanCount(
-                        mMaxTargetsPerRow);
-
-                updateTabPadding();
-            }
-
-            int currentProfile = mChooserMultiProfilePagerAdapter.getActiveProfile();
-            int initialProfile = Flags.fixDrawerOffsetOnConfigChange()
-                    ? mInitialProfile
-                    : findSelectedProfile();
-            if (currentProfile != initialProfile) {
-                return;
-            }
-
-            if (mLastNumberOfChildren == recyclerView.getChildCount() && !insetsChanged
-                    && !mFeatureFlags.fixMissingDrawerOffsetCalculation()) {
-                return;
-            }
-
-            getMainThreadHandler().post(() -> {
-                if (mResolverDrawerLayout == null || gridAdapter == null) {
-                    return;
-                }
-                int offset = calculateDrawerOffset(top, bottom, recyclerView, gridAdapter);
-                mResolverDrawerLayout.setCollapsibleHeightReserved(offset);
-                mEnterTransitionAnimationDelegate.markOffsetCalculated();
-                mLastAppliedInsets = mSystemWindowInsets;
-            });
+            updateTabPadding();
         }
+
+        if (mChooserMultiProfilePagerAdapter.getActiveProfile() != mInitialProfile) {
+            return;
+        }
+
+        getMainThreadHandler().post(() -> {
+            if (mResolverDrawerLayout == null) {
+                return;
+            }
+            int offset = calculateDrawerOffset(top, bottom, recyclerView, gridAdapter);
+            mResolverDrawerLayout.setCollapsibleHeightReserved(offset);
+            mEnterTransitionAnimationDelegate.markOffsetCalculated();
+            mLastAppliedInsets = mSystemWindowInsets;
+        });
     }
 
     private int calculateDrawerOffset(
@@ -2441,22 +2481,16 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
 
         //TODO: move this block inside ChooserListAdapter (should be called when
         // ResolverListAdapter#mPostListReadyRunnable is executed.
-        if (chooserListAdapter.getDisplayResolveInfoCount() == 0) {
-            Log.d(TAG, "getDisplayResolveInfoCount() == 0");
-            if (rebuildComplete) {
-                onAppTargetsLoaded(listAdapter);
-            }
-            chooserListAdapter.notifyDataSetChanged();
-        } else {
-            chooserListAdapter.updateAlphabeticalList(() -> onAppTargetsLoaded(listAdapter));
-        }
+        chooserListAdapter.updateAlphabeticalList(
+                rebuildComplete,
+                () -> onAppTargetsLoaded(listAdapter));
 
         if (rebuildComplete) {
             long duration = Tracer.INSTANCE.endAppTargetLoadingSection(listProfileUserHandle);
             if (duration >= 0) {
                 Log.d(TAG, "app target loading time " + duration + " ms");
             }
-            if (!fixShortcutsFlashing()) {
+            if (!fixShortcutsFlashingFixed()) {
                 addCallerChooserTargets(chooserListAdapter);
             }
             getEventLog().logSharesheetAppLoadComplete();
@@ -2488,8 +2522,9 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         ChooserListAdapter adapter =
                 mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(userHandle);
         if (adapter != null) {
-            if (fixShortcutsFlashing()) {
+            if (fixShortcutsFlashingFixed()) {
                 adapter.setDirectTargetsEnabled(true);
+                adapter.resetDirectTargets();
                 addCallerChooserTargets(adapter);
             }
             for (ShortcutLoader.ShortcutResultInfo resultInfo : result.getShortcutsByApp()) {
@@ -2590,7 +2625,7 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
     }
 
     private boolean shouldShowStickyContentPreviewNoOrientationCheck() {
-        if (!shouldShowContentPreview()) {
+        if (isInteractiveSession() || !shouldShowContentPreview()) {
             return false;
         }
         ResolverListAdapter adapter = mChooserMultiProfilePagerAdapter.getListAdapterForUserHandle(
@@ -2683,15 +2718,26 @@ public class ChooserActivity extends Hilt_ChooserActivity implements
         }
     }
 
+    private int getInteractiveSessionTopSpacing() {
+        return getResources().getDimensionPixelSize(R.dimen.chooser_preview_image_height_tall);
+    }
+
+    private boolean isInteractiveSession() {
+        return interactiveSession() && mRequest.getInteractiveSessionCallback() != null
+                && !isTaskRoot();
+    }
+
     protected WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
         mSystemWindowInsets = insets.getInsets(WindowInsets.Type.systemBars());
-        if (mFeatureFlags.fixEmptyStatePaddingBug() || mProfiles.getWorkProfilePresent()) {
-            mChooserMultiProfilePagerAdapter
-                    .setEmptyStateBottomOffset(mSystemWindowInsets.bottom);
-        }
+        mChooserMultiProfilePagerAdapter
+                .setEmptyStateBottomOffset(mSystemWindowInsets.bottom);
 
-        mResolverDrawerLayout.setPadding(mSystemWindowInsets.left, mSystemWindowInsets.top,
-                mSystemWindowInsets.right, 0);
+        final int topSpacing = isInteractiveSession() ? getInteractiveSessionTopSpacing() : 0;
+        mResolverDrawerLayout.setPadding(
+                mSystemWindowInsets.left,
+                mSystemWindowInsets.top + topSpacing,
+                mSystemWindowInsets.right,
+                0);
 
         // Need extra padding so the list can fully scroll up
         // To accommodate for window insets
