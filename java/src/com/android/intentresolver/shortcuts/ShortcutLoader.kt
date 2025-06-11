@@ -35,8 +35,7 @@ import androidx.annotation.MainThread
 import androidx.annotation.OpenForTesting
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
-import com.android.intentresolver.Flags.fixShortcutLoaderJobLeak
-import com.android.intentresolver.Flags.fixShortcutsFlashing
+import com.android.intentresolver.Flags.fixShortcutsFlashingFixed
 import com.android.intentresolver.chooser.DisplayResolveInfo
 import com.android.intentresolver.measurements.Tracer
 import com.android.intentresolver.measurements.runTracing
@@ -80,8 +79,7 @@ constructor(
     private val dispatcher: CoroutineDispatcher,
     private val callback: Consumer<Result>,
 ) {
-    private val scope =
-        if (fixShortcutLoaderJobLeak()) parentScope.createChildScope() else parentScope
+    private val scope = parentScope.createChildScope()
     private val shortcutToChooserTargetConverter = ShortcutToChooserTargetConverter()
     private val userManager = context.getSystemService(Context.USER_SERVICE) as UserManager
     private val appPredictorWatchdog = AtomicReference<Job?>(null)
@@ -170,9 +168,7 @@ constructor(
 
     @OpenForTesting
     open fun destroy() {
-        if (fixShortcutLoaderJobLeak()) {
-            scope.cancel()
-        }
+        scope.cancel()
     }
 
     @WorkerThread
@@ -193,7 +189,7 @@ constructor(
                 Log.d(TAG, "[$id] query AppPredictor for user $userHandle")
 
                 val watchdogJob =
-                    if (fixShortcutsFlashing()) {
+                    if (fixShortcutsFlashingFixed()) {
                         scope
                             .launch(start = CoroutineStart.LAZY) {
                                 delay(APP_PREDICTOR_RESPONSE_TIMEOUT_MS)

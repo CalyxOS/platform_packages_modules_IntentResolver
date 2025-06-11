@@ -24,6 +24,7 @@ java_defaults {
     srcs: [
         "java/src/**/*.java",
         "java/src/**/*.kt",
+        "java/aidl/**/I*.aidl",
     ],
     resource_dirs: [
         "java/res",
@@ -52,6 +53,7 @@ android_library {
         "androidx.lifecycle_lifecycle-runtime-ktx",
         "androidx.lifecycle_lifecycle-viewmodel-ktx",
         "dagger2",
+        "//frameworks/libs/systemui:com_android_systemui_shared_flags_lib",
         "hilt_android",
         "IntentResolverFlagsLib",
         "iconloader",
@@ -76,6 +78,9 @@ android_library {
         "-Adagger.explicitBindingConflictsWithInject=ERROR",
         "-Adagger.strictMultibindingValidation=enabled",
     ],
+    aidl: {
+        local_include_dirs: ["java/aidl"],
+    },
 }
 
 java_defaults {
@@ -104,9 +109,4 @@ android_app {
         proguard_flags_files: ["proguard.flags"],
     },
     visibility: ["//visibility:public"],
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.intentresolver",
-        "test_com.android.intentresolver",
-    ],
 }
