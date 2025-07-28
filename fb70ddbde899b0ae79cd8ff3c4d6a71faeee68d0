@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "cff75eb0_09cebcbe",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000062
+      },
+      "writtenOn": "2025-07-28T19:20:49Z",
+      "side": 1,
+      "message": "IntentResolver is significantly broken, I think: https://gitlab.com/CalyxOS/calyxos/-/issues/3357\n\nCan test with pure upstream and see if it\u0027s just as broken.",
+      "revId": "fb70ddbde899b0ae79cd8ff3c4d6a71faeee68d0",
+      "serverId": "35266860-6252-469c-a67d-185064479fc0"
+    }
+  ]
+}
